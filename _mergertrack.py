@@ -45,9 +45,9 @@ def merger_track(mmid, dlogm=0.5):
     for isnap in range(snapshots[-1]): 
         # indices of the parent with the highest M_max (i.e. primaries) 
         i_primaries = sub[isnap]['par.i'][ihalos]
-        has_primary = (i_primaries >= 0) # at snapshot=0 ~40 do not have parents
-        
         # only keep halos that have parents
+        # at snapshot=0 ~40 do not have parents
+        has_primary = (i_primaries >= 0) 
         ihalos = ihalos[has_primary]
         i_primaries = i_primaries[has_primary]
         
@@ -71,7 +71,7 @@ def merger_track(mmid, dlogm=0.5):
         print('snapshot %i, %i m_M0s' % (isnap, len(m_M0)))
         # keep searching through the primaries 
         ihalos = i_primaries
-    
+    print('%i halos have primaries in the last snapshot' % len(ihalos)) 
     m_M0 = np.array(m_M0)
 
     f = h5py.File('m_M0.h5', 'w') 
@@ -114,5 +114,5 @@ def plotMFaccreted():
 
 
 if __name__=="__main__": 
-    #merger_track(12, dlogm=0.5)
-    plotMFaccreted()
+    merger_track(12, dlogm=0.5)
+    #plotMFaccreted()
