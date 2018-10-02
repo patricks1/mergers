@@ -4,7 +4,10 @@
 import h5py 
 import numpy as np 
 from collections import Counter
-from treepm import subhalo_io
+try: 
+    from treepm import subhalo_io
+except ImportError: 
+    pass
 
 
 def merger_track(mmid, dlogm=0.5): 
@@ -77,5 +80,39 @@ def merger_track(mmid, dlogm=0.5):
     return None 
 
 
+def plotMFaccreted(): 
+    ''' plot the mass funciton
+    ''' 
+    import matplotlib as mpl
+    import matplotlib.pyplot as plt
+    mpl.rcParams['font.family'] = 'serif'
+    mpl.rcParams['axes.linewidth'] = 1.5
+    mpl.rcParams['axes.xmargin'] = 1
+    mpl.rcParams['xtick.labelsize'] = 'x-large'
+    mpl.rcParams['xtick.major.size'] = 5
+    mpl.rcParams['xtick.major.width'] = 1.5
+    mpl.rcParams['ytick.labelsize'] = 'x-large'
+    mpl.rcParams['ytick.major.size'] = 5
+    mpl.rcParams['ytick.major.width'] = 1.5
+    mpl.rcParams['legend.frameon'] = False
+
+    f = h5py.File('m_M0.h5', 'r')
+    m_M0 = f['m_M0'].value 
+    
+    fig = plt.figure(figsize=(6,6))
+    sub = fig.add_subplot(111)
+    bins = np.logspace(-3., np.log10(0.3), 15) 
+    sub.hist(m_M0, bins=bins, histtype='step', cumulative=-1)
+    sub.set_xlabel(r'$m/M_0$', fontsize=25)
+    sub.set_xscale("log") 
+    sub.set_xlim([1e-3, 0.3]) 
+    sub.set_ylabel(r'$n(>m)$', fontsize=25)
+    sub.set_yscale("log")
+    #sub.set_ylim([0.2, 35]) 
+    fig.savefig('m_M0.png', bbox_inches='tight') 
+    return None 
+
+
 if __name__=="__main__": 
-    merger_track(12, dlogm=0.5)
+    #merger_track(12, dlogm=0.5)
+    plotMFaccreted()
