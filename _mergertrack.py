@@ -150,15 +150,16 @@ def merger_track_throughout(mmid, dlogm=0.5):
     print('%i halos have primaries in the last snapshot' % len(ihalos)) 
     m_M0 = np.array(m_M0)
 
-    f = h5py.File('m_M0.h5', 'w') 
+    f = h5py.File('m_M0_through.h5', 'w') 
     f.create_dataset('m_M0', data=m_M0) 
     f.close() 
     return None 
 
 
-def plotMFaccreted(): 
+def plotMFaccreted(datfile='m_M0.h5'): 
     ''' plot the mass funciton
     ''' 
+    
     import matplotlib as mpl
     import matplotlib.pyplot as plt
     mpl.rcParams['font.family'] = 'serif'
@@ -172,7 +173,7 @@ def plotMFaccreted():
     mpl.rcParams['ytick.major.width'] = 1.5
     mpl.rcParams['legend.frameon'] = False
 
-    f = h5py.File('m_M0.h5', 'r')
+    f = h5py.File(datfile, 'r')
     m_M0 = f['m_M0'].value 
     
     fig = plt.figure(figsize=(6,6))
@@ -185,7 +186,10 @@ def plotMFaccreted():
     sub.set_ylabel(r'$n(>m)$', fontsize=25)
     sub.set_yscale("log")
     #sub.set_ylim([0.2, 35]) 
-    fig.savefig('m_M0.png', bbox_inches='tight') 
+    if datfile=='m_M0_throughout.h5':
+        fig.savefig('m_M0_throughout.png', bbox_inches='tight')
+    else:
+        fig.savefig('m_M0.png', bbox_inches='tight')
     return None 
 
 
