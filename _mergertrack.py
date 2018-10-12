@@ -1,6 +1,9 @@
 #!/bin/python
 '''
 '''
+import matplotlib as mpl
+mpl.use('Agg')
+
 import h5py 
 import numpy as np 
 from collections import Counter
@@ -8,7 +11,8 @@ try:
     from treepm import subhalo_io
     from utilities import utility as wUT
 except ImportError: 
-    pass
+    print'import fail'
+    #pass
 
 
 def merger_track(mmid, dlogm=0.5): 
@@ -112,7 +116,8 @@ def merger_track_throughout(mmid, dlogm=0.5):
     in_mbin = (sub[0]['halo.m'] > mmid - 0.5*dlogm) & (sub[0]['halo.m'] < mmid + 0.5*dlogm)
     print('%i out of %i subhalos are centrals' % (np.sum(is_cen & in_mbin), nsub0))
     # has prognitor until the last snapshot 
-    prog_final = wUT.utilities_catalog.indices_tree(sub, 0, snapshot[-1], np.arange(nsub0))
+    prog_final = wUT.catalog.indices_tree(sub, 0, snapshots[-1], np.arange(nsub0))
+    #prog_final = wUT.utilities_catalog.indices_tree(sub, 0, snapshot[-1], np.arange(nsub0))
     has_prog = (prog_final >= 0)
 
     ihalos = np.arange(nsub0)[is_cen & in_mbin & has_prog]
@@ -160,7 +165,7 @@ def plotMFaccreted(datfile='m_M0.h5'):
     ''' plot the mass funciton
     ''' 
     
-    import matplotlib as mpl
+    #import matplotlib as mpl
     import matplotlib.pyplot as plt
     mpl.rcParams['font.family'] = 'serif'
     mpl.rcParams['axes.linewidth'] = 1.5
@@ -186,8 +191,8 @@ def plotMFaccreted(datfile='m_M0.h5'):
     sub.set_ylabel(r'$n(>m)$', fontsize=25)
     sub.set_yscale("log")
     #sub.set_ylim([0.2, 35]) 
-    if datfile=='m_M0_throughout.h5':
-        fig.savefig('m_M0_throughout.png', bbox_inches='tight')
+    if datfile=='m_M0_through.h5':
+        fig.savefig('m_M0_through.png', bbox_inches='tight')
     else:
         fig.savefig('m_M0.png', bbox_inches='tight')
     return None 
