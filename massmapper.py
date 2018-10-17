@@ -28,8 +28,11 @@ class Mergerdata:
         
         self.halis={} #create an empty dictionary in which to put the index numbers of halos at the various snapshots
         self.halis[0]=elements(self.cat[0][self.mkind],
-                             lim=[self.mhal0-1./2.*self.mwidth,self.mhal0+1./2.*self.mwidth]) #fill the halindexnums dictionary at snapshot 0 with the index numbers of halos that fall within the desired mass range
-        #self.cat.info['m.kind'] is there because the halo masses are stored either as 'm.max' if catalog_kind='subhalo' or 'm.fof' if catalog_kind='halo' 
+                               lim=[self.mhal0-1./2.*self.mwidth,self.mhal0+1./2.*self.mwidth]) #fill the halindexnums dictionary at snapshot 0 with the index numbers of halos that fall within the desired mass range
+        #self.cat.info['m.kind'] is there because the halo masses are stored either as 'm.max' if catalog_kind='subhalo' or 'm.fof' if catalog_kind='halo'
+        is_cen=self.cat[0]['ilk'][self.halis[0]]==1
+        self.halis[0]=self.halis[0][is_cen]
+
         random.seed(1) 
         if n is None:
             n=len(self.halis[0])
@@ -59,9 +62,11 @@ class Mergerdata:
         self.massmap=massmap
     
     def gendistributionnew(self):
-        self.mratios=np.array([])
-        self.ms=np.array([])
-        
+        #self.mratios=np.array([])
+        #self.ms=np.array([])
+        mratios=[]
+        ms=[]
+
         pbar=ProgressBar()
         for finhali in pbar(self.halis[0]):
             m0=self.cat[0][self.mkind][finhali]
@@ -76,11 +81,17 @@ class Mergerdata:
                 mask=mask_mainprog*mask_zeromass
                 progenis_snap=progenis_snap[mask] #Remove the main progenitor and zero-mass halos from calculations
                 ms_add=self.cat[snap][self.mkind][progenis_snap]
+                #print type(ms_add)
                 mratios_add=10.**ms_add/10.**m0 
-                self.ms=np.append(self.ms,ms_add)
-                self.mratios=np.append(self.mratios,mratios_add)
+                ms+=list(ms_add)
+                mratios+=list(mratios_add)
+                #self.ms=np.append(self.ms,ms_add)
+                #self.mratios=np.append(self.mratios,mratios_add)
                 mainprogi_prevsnap=mainprogi_snap #Prepare the loop for the next iteration by moving forward mainprogi_prevsnap.
 
+        self.ms=np.array(ms)
+        self.mratios=np.array(mratios)
+        
         num=50.
         lowerbound=min(self.mratios)
         upperbound=max(self.mratios)

@@ -5,7 +5,10 @@ import matplotlib as mpl
 mpl.use('Agg')
 
 import h5py 
-import numpy as np 
+import numpy as np
+import datetime
+import random
+
 from collections import Counter
 try: 
     from treepm import subhalo_io
@@ -15,7 +18,7 @@ except ImportError:
     #pass
 
 
-def merger_track(mmid, dlogm=0.5): 
+def merger_track(mmid, dlogm=0.5,mkind='halo.m'): 
     ''' track the accreted halo masses 
 
     snap5   * * m3
@@ -43,9 +46,13 @@ def merger_track(mmid, dlogm=0.5):
     is_cen = (sub[0]['ilk'] == 1)
     print('%i out of %i subhalos are centrals' % (np.sum(is_cen), len(is_cen)))
     # within [mmid - 0.5 dlogm, mmid + 0.5 dlogm] at snapshot 0 
-    in_mbin = (sub[0]['halo.m'] > mmid - 0.5*dlogm) & (sub[0]['halo.m'] < mmid + 0.5*dlogm)
+    in_mbin = (sub[0][mkind] > mmid - 0.5*dlogm) & (sub[0][mkind] < mmid + 0.5*dlogm)
 
     ihalos = np.arange(nsub0)[is_cen & in_mbin]
+    #random.seed(1)
+    #ihalos=np.array(random.sample(ihalos,50))
+
+    print('%i subhalos in range' % len(ihalos))
     m_M0 = [] 
     for isnap in range(snapshots[-1]): 
         # indices of the parent with the highest M_max (i.e. primaries) 
@@ -70,22 +77,27 @@ def merger_track(mmid, dlogm=0.5):
             is_parent = np.where(sub[isnap+1]['chi.i'] == ih)[0]
             i_primary = sub[isnap]['par.i'][ih]
             notprimary = (is_parent != i_primary) 
-
-            m_M0 += list(sub[isnap+1]['halo.m'][is_parent[notprimary]] - sub[isnap]['halo.m'][ih])
+           
+            ifh=wUT.catalog.indices_tree(sub, isnap, 0,ih)
+            M0=sub[0][mkind][ifh]
+            m_M0 += list(sub[isnap+1][mkind][is_parent[notprimary]] - M0)
+            #m_M0 += list(sub[isnap+1][mkind][is_parent[notprimary]] - sub[isnap][mkind][ih])
     
         print('snapshot %i, %i m_M0s' % (isnap, len(m_M0)))
         # keep searching through the primaries 
         ihalos = i_primaries
     print('%i halos have primaries in the last snapshot' % len(ihalos)) 
     m_M0 = np.array(m_M0)
-
-    f = h5py.File('m_M0.h5', 'w') 
+    
+    timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
+    filename='./dat/m_M0_{0:0.0f}_{2}_{1}.h5'.format(mmid,timestmp,mkind)
+    f = h5py.File(filename, 'w') 
     f.create_dataset('m_M0', data=m_M0) 
     f.close() 
     return None 
 
 
-def merger_track_throughout(mmid, dlogm=0.5): 
+def merger_track_throughout(mmid, dlogm=0.5,mkind='halo.m'): 
     ''' track the accreted halo masses 
 
     snap5   * * m3
@@ -113,13 +125,14 @@ def merger_track_throughout(mmid, dlogm=0.5):
     is_cen = (sub[0]['ilk'] == 1)
     print('%i out of %i subhalos are centrals' % (np.sum(is_cen), nsub0))
     # within [mmid - 0.5 dlogm, mmid + 0.5 dlogm] at snapshot 0 
-    in_mbin = (sub[0]['halo.m'] > mmid - 0.5*dlogm) & (sub[0]['halo.m'] < mmid + 0.5*dlogm)
-    print('%i out of %i subhalos are centrals' % (np.sum(is_cen & in_mbin), nsub0))
+    in_mbin = (sub[0][mkind] > mmid - 0.5*dlogm) & (sub[0][mkind] < mmid + 0.5*dlogm)
+    #print('%i out of %i subhalos are centrals' % (np.sum(is_cen & in_mbin), nsub0))
     # has prognitor until the last snapshot 
     prog_final = wUT.catalog.indices_tree(sub, 0, snapshots[-1], np.arange(nsub0))
     #prog_final = wUT.utilities_catalog.indices_tree(sub, 0, snapshot[-1], np.arange(nsub0))
     has_prog = (prog_final >= 0)
-
+    
+    print('%i in range' % np.sum(is_cen & in_mbin))
     ihalos = np.arange(nsub0)[is_cen & in_mbin & has_prog]
     print('%i out of %i subhalos are tracked throughout the snapshots' % (len(ihalos), nsub0))
     m_M0 = [] 
@@ -146,8 +159,11 @@ def merger_track_throughout(mmid, dlogm=0.5):
             is_parent = np.where(sub[isnap+1]['chi.i'] == ih)[0]
             i_primary = sub[isnap]['par.i'][ih]
             notprimary = (is_parent != i_primary) 
-
-            m_M0 += list(sub[isnap+1]['halo.m'][is_parent[notprimary]] - sub[isnap]['halo.m'][ih])
+            
+            ifh=wUT.catalog.indices_tree(sub, isnap, 0,ih)
+            M0=sub[0][mkind][ifh]
+            m_M0 += list(sub[isnap+1][mkind][is_parent[notprimary]] - M0)
+            #m_M0 += list(sub[isnap+1][mkind][is_parent[notprimary]] - sub[isnap][mkind][ih])
     
         print('snapshot %i, %i m_M0s' % (isnap, len(m_M0)))
         # keep searching through the primaries 
@@ -155,7 +171,9 @@ def merger_track_throughout(mmid, dlogm=0.5):
     print('%i halos have primaries in the last snapshot' % len(ihalos)) 
     m_M0 = np.array(m_M0)
 
-    f = h5py.File('m_M0_through.h5', 'w') 
+    timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
+    filename='./dat/m_M0_{0:0.0f}_{2}_through_{1}.h5'.format(mmid,timestmp,mkind)
+    f = h5py.File(filename, 'w') 
     f.create_dataset('m_M0', data=m_M0) 
     f.close() 
     return None 
@@ -192,9 +210,9 @@ def plotMFaccreted(datfile='m_M0.h5'):
     sub.set_yscale("log")
     #sub.set_ylim([0.2, 35]) 
     if datfile=='m_M0_through.h5':
-        fig.savefig('m_M0_through.png', bbox_inches='tight')
+        fig.savefig('m_M0_through_new.png', bbox_inches='tight')
     else:
-        fig.savefig('m_M0.png', bbox_inches='tight')
+        fig.savefig('m_M0_new.png', bbox_inches='tight')
     return None 
 
 
