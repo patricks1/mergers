@@ -16,10 +16,10 @@ from treepm.subhalo_io import TreepmClass
 from progressbar import ProgressBar
 
 class Mergerdata:
-    def __init__(self,mhal0,mwidth,catalog_kind='subhalo',n=None): #inputs <mass of interest>,<acceptable width around that mass>,<size of random subsample to take>
+    def __init__(self,mhal0,mwidth,catalog_kind='subhalo',n=None,zis=np.arange(35)): #inputs <mass of interest>,<acceptable width around that mass>,<size of random subsample to take>,<snapshot indices>
         self.mhal0=mhal0
         self.mwidth=mwidth
-        self.snapshotindex=np.arange(35) #There are 35 snapshots. This creates an array that goes from 0 to 34
+        self.snapshotindex=zis 
         self.catalog_kind=catalog_kind
         treepm=TreepmClass() #create a treepm instance from Wetzel's code
         self.cat=treepm.read(zis=self.snapshotindex,catalog_kind=self.catalog_kind) #populate the halo catalog using Wetzel's code
