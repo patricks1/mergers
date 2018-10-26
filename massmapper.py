@@ -232,22 +232,40 @@ class Mergerdata:
     def tracker(self):
         mfrackey='mfrackey'
         thresh=0.1
-        halis=len(self.cat[self.snapshotindex[-1]]['halo.i']):
-        m_m0s=[]
-            for zi in self.snapshotindex[::-1]     
-                iscen=self.cat[zi]['ilk'][halis]==1
-                halis=halis[~iscen]
-                mfracs=self.cat[zi][mfrackey][halis] 
-                mmaxs=self.cat[zi]['m.max'][halis]
-                
-                diddrop=mfracs<mfracsprev
-                destd=mfracs<=thresh #qualifies as destroyed
-                ms=(mmaxs*mfracs)[diddrop & destd] 
-                mcs=self.cat[zi]
-                ms+=msadd
+        his=len(self.cat[self.snapshotindex[-1]]['halo.i']):
+        
+        #FOR TESTING####
+        n=100
+        his=random.sample(his,n) #Take a radom sample for testing
+        #FOR TESTING####
 
-                #prep for next run:
-                chiis=self.cat[zi]['chi.i'][halis]
-                halis=chiis
-                mfracsprev=mfracs
-                
+        m_m0s=[]
+        for zi in self.snapshotindex[::-1]     
+            iscen=self.cat[zi]['ilk'][his]==1
+            his=his[~iscen]
+            mfracs=self.cat[zi][mfrackey][his] 
+            
+            smaller=mfracs<mfracsprev
+            destd=mfracs<=thresh #qualifies as destroyed
+            mmaxs=self.cat[zi]['m.max'][smaller & destd]
+            ms=(mmaxs*mfracs)[smaller & destd] 
+            
+            chis=self.cat[zi]['halo.i'][smaller & destd]
+            fchis=indices_tree(self.cat,zi,0,chis)
+            m0s=self.cat[0]['m.max'][fchis]
+            inmbin=(m0s<self.mhal0+self.mwidth/2.)&(m0s>self.mhal0-self.mwidth/2)
+            ms=ms[inmbin]
+            m0s=m0s[inmbin]
+            self.m_m0s+=list(ms-m0s)
+
+            #prep for next run:
+            chiis=self.cat[zi]['chi.i'][his[~smaller & ~destd]]
+            his=chiis
+            mfracsprev=mfracs
+
+	timetmp='{:%Y%m%d}'.format(datetime.datetime.now())
+	filename='./dat/true_m_m0_{0:0.0f}_{2}_{1}.h5'.format(mmid,timestmp,self.mkind)
+	f = h5py.File(filename, 'w')
+	f.create_dataset('m_m0s', data=m_M0)
+        f.create_dataset('N_fc',data=len(self.halis[0]))
+	f.close()
