@@ -230,9 +230,24 @@ class Mergerdata:
         return midbins,n
          
     def tracker(self):
-        halibeg=len(self.cat[self.snapshotindex[-1]]['halo.i']):
-        hali=halibeg
+        mfrackey='mfrackey'
+        thresh=0.1
+        halis=len(self.cat[self.snapshotindex[-1]]['halo.i']):
+        m_m0s=[]
             for zi in self.snapshotindex[::-1]     
-                iscen=self.cat[zi]['ilk']==1
+                iscen=self.cat[zi]['ilk'][halis]==1
+                halis=halis[~iscen]
+                mfracs=self.cat[zi][mfrackey][halis] 
+                mmaxs=self.cat[zi]['m.max'][halis]
+                
+                diddrop=mfracs<mfracsprev
+                destd=mfracs<=thresh #qualifies as destroyed
+                ms=(mmaxs*mfracs)[diddrop & destd] 
+                mcs=self.cat[zi]
+                ms+=msadd
 
-
+                #prep for next run:
+                chiis=self.cat[zi]['chi.i'][halis]
+                halis=chiis
+                mfracsprev=mfracs
+                
