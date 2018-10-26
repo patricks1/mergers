@@ -229,4 +229,10 @@ class Mergerdata:
         n=N/250**3./binw #number density i.e. number per volume per bin size
         return midbins,n
          
+    def tracker(self):
+        halibeg=len(self.cat[self.snapshotindex[-1]]['halo.i']):
+        hali=halibeg
+            for zi in self.snapshotindex[::-1]     
+                iscen=self.cat[zi]['ilk']==1
+
 
