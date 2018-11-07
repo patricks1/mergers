@@ -407,3 +407,10 @@ class Mergerdata:
         f.create_dataset('m_Ms',data=self.m_Ms)
         f.create_dataset('N_fc',data=len(self.halis[0]))
 	f.close()
+
+    def plotnewtracker():
+        timestmp=20181031
+        fname='/home/users/staudt/projects/mergers/dat/true_m_M0_m.max_{}.h5'.format(timestmp)
+        f=h5py.File(fname,'r')
+        M0s_zis=np.array(f['M0s'])
+        m_M0s_zis=np.array(f['m_M0s'])
