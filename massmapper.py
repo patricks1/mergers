@@ -412,7 +412,90 @@ class Mergerdata:
         f.create_dataset('N_fc',data=len(self.halis[0]))
 	f.close()
 
-    def plotnewtracker():
+    def tracker_with_opt(self,zis=np.arange(35),kind='merger'):
+        mfrackey='m.frac.min'
+        thresh=0.1
+        his=np.arange(len(self.cat[self.snapshotindex[-1]]['halo.i']))
+        
+        '''
+        #FOR TESTING####
+        n=int(1e5)
+        his=np.array(random.sample(his,n)) #Take a radom sample for testing
+        #FOR TESTING####
+        '''
+        
+        print'starting with %i halos' %len(his)
+        m_M0s=[]
+        M0s=[]
+        iscen=self.cat[self.snapshotindex[-1]]['ilk'][his]==1 #specifying his here in the first step is usually redundant, but I'm including it to cover special case where we start with less than the full catalog of his
+        #mfracsprev=np.repeat(1.,sum(~iscen))
+        mfracsprev=np.repeat(1.,len(his))
+        pbar=ProgressBar()
+        #for zi in pbar(self.snapshotindex[::-1]): 
+        for zi in zis[::-1]: 
+            print'\nsnapshot %i' %zi
+            iscen=self.cat[zi]['ilk'][his]==1
+            #print'%i non-centrals'%sum(~iscen)
+            #his_nc=his[~iscen] #Do I really want to be removing centrals here? I think so, but verify this.
+            mfracs=self.cat[zi][mfrackey][his]
+            
+            smaller=mfracs<mfracsprev
+            destd=mfracs<=thresh #qualifies as destroyed
+            isev=smaller & destd & ~iscen #qualifies as an event
+            his_ev=his[isev] 
+            #print'%i newly destroyed non-central halos' %len(his_ev)
+            mmaxs_ev=self.cat[zi]['m.max'][his_ev]
+            mfracs_ev=mfracs[isev]
+            ms_inst=(mmaxs_ev*mfracs_ev) #The program currently does not use this data
+            
+            chis=self.cat[zi]['halo.i'][his_ev] #central halo indices---Don't confuse with chiis (child halo indices)
+            #fchis=np.array(indices_tree(self.cat,zi,0,chis)) #z=0 indices of central halos
+            fchis=indices_tree(self.cat,zi,0,chis) #z=0 indices of central halos
+            has_fchi=fchis>=0 #if indices_tree returns a negative for the final central halo index, there is no central at z=0.
+            fchis=fchis[has_fchi]
+            #print'%i final halos for %i newly destroyed halos' %(len(fchis),len(his_ev))
+            #M0s=self.cat[0]['m.max'][fchis]
+            M0s_add=self.cat[0]['m.max'][fchis]
+            #inmbin=(M0s<self.mhal0+self.mwidth/2.)&(M0s>self.mhal0-self.mwidth/2)
+            #ms=ms[has_fchi][inmbin] #Cut the ms array down to elements whose central exists at z=0. Then pull elements of that array (the shape of which matches fchis) whose centrals are in the mbin. 
+            ms=mmaxs_ev[has_fchi].flatten() #Cut the mmaxs_ev array down to elements whose central exists at z=0. I'm not going to eliminate elements outside the mbin, because I want to only run this once, and it's probably a better idea to just record m_M0 along with what the M0 is and then narrow down the m_M0's later.
+            #The reason I need to flatten the array: If mmaxs_ev has only one element, the mmaxs_ev[has_fchi] array returns a nested array, apparently because it evaluates both the single element and the dtype=float32 descriptor. I have no idea why it does this, but flattening the resulting masked array is a work around. 
+            #M0s=M0s[inmbin] #M0s was made from fchis, so we don't need to cut anything before taking inmbin mask.
+            m_M0s_add=ms-M0s_add
+            m_M0s_add=np.minimum(m_M0s_add,-m_M0s_add)
+            #print'new m_M0 ratios:'
+            #print m_M0s_add
+            '''
+            print"from m.max's:"
+            print ms
+            print"from M0's:"
+            print M0s_add
+            '''
+            M0s+=list(M0s_add)
+            m_M0s+=list(m_M0s_add)
+
+            #prep for next run:
+            his=his[~destd] #Remove destroyed subhalos from next evaluation.
+            mfracsprev=mfracs[~destd] #Remove mfracs for destroyed subhalos 
+            #print 'removing %i destroyed halos. %i halos remaining'%(sum(destd),len(his))
+            chiis=self.cat[zi]['chi.i'][his] #child indices
+            his=chiis
+
+        self.M0s=np.array(M0s)
+        self.m_M0s=np.array(m_M0s)
+        #print''
+        #print m_M0s
+
+	timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
+	#filename='./dat/true_m_M0_{0:0.0f}_{2}_{1}.h5'.format(mmid,timestmp,self.mkind)
+	filename='./dat/true_m_M0_{1}_{0}.h5'.format(timestmp,self.mkind)
+	f = h5py.File(filename, 'w')
+	f.create_dataset('m_M0s', data=self.m_M0s)
+        f.create_dataset('M0s',data=self.M0s)
+        f.create_dataset('N_fc',data=len(self.halis[0]))
+	f.close()
+
+   def plotnewtracker():
         timestmp=20181031
         fname='/home/users/staudt/projects/mergers/dat/true_m_M0_m.max_{}.h5'.format(timestmp)
         f=h5py.File(fname,'r')
