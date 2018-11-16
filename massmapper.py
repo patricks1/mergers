@@ -427,9 +427,15 @@ class Mergerdata:
         print'starting with %i halos' %len(his)
         m_M0s=[]
         M0s=[]
+        
+        #This next line might be redundant, because it may have been originally intended to feed the line after itself, and that line after is now commented.
         iscen=self.cat[self.snapshotindex[-1]]['ilk'][his]==1 #specifying his here in the first step is usually redundant, but I'm including it to cover special case where we start with less than the full catalog of his
         #mfracsprev=np.repeat(1.,sum(~iscen))
-        mfracsprev=np.repeat(1.,len(his))
+        
+        
+        #mfracsprev=np.repeat(1.,len(his))
+        mfracsprev=np.zeros(len(his))
+        
         pbar=ProgressBar()
         #for zi in pbar(self.snapshotindex[::-1]): 
         for zi in zis[::-1]: 
@@ -441,7 +447,10 @@ class Mergerdata:
             
             smaller=mfracs<mfracsprev
             destd=mfracs<=thresh #qualifies as destroyed
-            isev=smaller & destd & ~iscen #qualifies as an event
+            if kind=='merger':
+                isev=smaller & destd & ~iscen #qualifies as an event
+            else:
+                isev=smaller & ~iscen
             his_ev=his[isev] 
             #print'%i newly destroyed non-central halos' %len(his_ev)
             mmaxs_ev=self.cat[zi]['m.max'][his_ev]
@@ -475,8 +484,8 @@ class Mergerdata:
             m_M0s+=list(m_M0s_add)
 
             #prep for next run:
-            his=his[~destd] #Remove destroyed subhalos from next evaluation.
-            mfracsprev=mfracs[~destd] #Remove mfracs for destroyed subhalos 
+            his=his[~isev] #Remove affected subhalos from next evaluation.
+            mfracsprev=mfracs[~isev] #Remove mfracs for affected subhalos 
             #print 'removing %i destroyed halos. %i halos remaining'%(sum(destd),len(his))
             chiis=self.cat[zi]['chi.i'][his] #child indices
             his=chiis
@@ -495,7 +504,7 @@ class Mergerdata:
         f.create_dataset('N_fc',data=len(self.halis[0]))
 	f.close()
 
-   def plotnewtracker():
+    def plotnewtracker():
         timestmp=20181031
         fname='/home/users/staudt/projects/mergers/dat/true_m_M0_m.max_{}.h5'.format(timestmp)
         f=h5py.File(fname,'r')
