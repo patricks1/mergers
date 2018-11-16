@@ -32,8 +32,9 @@ class Mergerdata:
         self.halis[0]=elements(self.cat[0][self.mkind],
                                lim=[self.mhal0-1./2.*self.mwidth,self.mhal0+1./2.*self.mwidth]) #fill the halindexnums dictionary at snapshot 0 with the index numbers of halos that fall within the desired mass range
         #self.cat.info['m.kind'] is there because the halo masses are stored either as 'm.max' if catalog_kind='subhalo' or 'm.fof' if catalog_kind='halo'
-        is_cen=self.cat[0]['ilk'][self.halis[0]]==1
-        self.halis[0]=self.halis[0][is_cen]
+        if(self.catalog_kind=='subhalo'):
+            is_cen=self.cat[0]['ilk'][self.halis[0]]==1
+            self.halis[0]=self.halis[0][is_cen]
 
         random.seed(1) 
         if n is None:
@@ -214,10 +215,13 @@ class Mergerdata:
             fillfinhali()
 
     def halmassf(self,snap=0): #Get halo mass number density at given snapshot
-        allhalids=self.cat[snap]['halo.i'] #Get every halo ID at snap
+        if self.catalog_kind=='subhalo':
+            allhalids=self.cat[snap]['halo.i'] #Get every halo ID at snap
+            mask2=allhalids!=-1
+        else:
+            mask2=self.cat[snap]['m.fof']>0.
         allms=self.cat[snap][self.mkind] #Get all masses at snap
         mask1=allms!=0.
-        mask2=allhalids!=-1
         mask=mask1*mask2 #Get halo index for every halo with nonzero mass and ID not equal to -1.
         ms=allms[mask] #Get the corresponding masses
         num=50. #Number of bins
@@ -228,7 +232,7 @@ class Mergerdata:
         midbins=(bins[:-1]+bins[1:])/2 
         N,binsout,patches=plt.hist(ms,bins)
         plt.clf()
-        n=N/250**3./binw #number density i.e. number per volume per bin size
+        n=N/(250/0.7)**3./binw #number density i.e. number per volume per bin size
         return midbins,n
          
     def tracker(self,zis=np.arange(35)):
