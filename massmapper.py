@@ -428,14 +428,9 @@ class Mergerdata:
         m_M0s=[]
         M0s=[]
         
-        iscen=self.cat[self.snapshotindex[-1]]['ilk'][his]==1 #specifying his here in the first step is usually redundant, but I'm including it to cover special case where we start with less than the full catalog of his
-        #mfracsprev=np.repeat(1.,sum(~iscen))
-        mfracsprev=np.repeat(1.,len(his))
-        
         #This next line might be redundant, because it may have been originally intended to feed the line after itself, and that line after is now commented.
         iscen=self.cat[self.snapshotindex[-1]]['ilk'][his]==1 #specifying his here in the first step is usually redundant, but I'm including it to cover special case where we start with less than the full catalog of his
         #mfracsprev=np.repeat(1.,sum(~iscen))
-        
         
         #mfracsprev=np.repeat(1.,len(his))
         mfracsprev=np.zeros(len(his))
