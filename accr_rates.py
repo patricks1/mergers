@@ -19,7 +19,9 @@ zis=np.arange(35)
 treepm=TreepmClass()
 subcat,hostcat=treepm.read(zis=zis,catalog_kind='both')
 
+msubtype='m.bound'
 M0wid=0.5
+
 
 def get_hostis0(M0,M0wid):
     hostis=elements(hostcat[0]['m.fof'],lim=[M0-M0wid/2.,M0+M0wid/2.])
@@ -79,18 +81,17 @@ def accr_rates(M0,N=None,excl=False):
         hostis0=random.sample(hostis0,N)
     print'evaluating %i'%len(hostis0)
     #print hostis0
-    Nhostis0=len(hostis0)
+    Nhost0=len(hostis0)
     pbar=ProgressBar()
     for hosti0 in pbar(hostis0):
         #print'\n\n\nhost0 idx: %i'%hosti0
         mM0s+=mM0s_add_f(hosti0,excl)
    
     timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
-    #filename='./dat/true_m_M0_{0:0.0f}_{2}_{1}.h5'.format(mmid,timestmp,self.mkind)
-    filename='./dat/mM0accr_{1}_{0}.h5'.format(timestmp,M0)
+    filename='./dat/mM0accr_{1:0.0f}_{0}.h5'.format(timestmp,M0)
     f = h5py.File(filename, 'w')
     f.create_dataset('mM0s', data=mM0s)
-    f.create_dataset('Nhostis0',data=Nhostis0)
+    f.create_dataset('Nhost0',data=Nhost0)
     f.close()
 
     return
