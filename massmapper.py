@@ -14,6 +14,7 @@ rcParams['mathtext.fontset'] = 'dejavuserif'
 from wetzel_utils.utility.utility_catalog import indices_tree
 from wetzel_utils.utility.utility_array import elements #returns index numbers of elements of an array that fall within given limts
 from treepm.subhalo_io import TreepmClass
+from subhalo_io_hack import TreepmClass as TreepmClass_h
 
 from progressbar import ProgressBar
 
@@ -23,7 +24,8 @@ class Mergerdata:
         self.mwidth=mwidth
         self.snapshotindex=zis 
         self.catalog_kind=catalog_kind
-        treepm=TreepmClass() #create a treepm instance from Wetzel's code
+        treepm=TreepmClass_h() #create a treepm instance from Wetzel's code
+        #treepm=TreepmClass() #create a treepm instance from Wetzel's code
         self.cat=treepm.read(zis=self.snapshotindex,catalog_kind=self.catalog_kind) #populate the halo catalog using Wetzel's code
         self.mkind=self.cat.info['m.kind'] #Get the dictionary identifier for the halo mass list. Subhalos use 'm.max'. Halos use 'm.fof'. 
         self.zarray=np.array([self.cat.snap[snapshotnum][1] for snapshotnum in self.snapshotindex]) #look in column 1 of the snapshot table to get the redshifts
@@ -232,7 +234,8 @@ class Mergerdata:
         midbins=(bins[:-1]+bins[1:])/2 
         N,binsout,patches=plt.hist(ms,bins)
         plt.clf()
-        n=N/(250/0.7)**3./binw #number density i.e. number per volume per bin size
+        n=N/(250.)**3./binw #number density i.e. number per volume per bin size
+        #n=N/(250./0.7)**3./binw #number density i.e. number per volume per bin size
         return midbins,n
          
     def tracker(self,zis=np.arange(35)):
@@ -446,7 +449,7 @@ class Mergerdata:
             
             smaller=mfracs<mfracsprev
             destd=mfracs<=thresh #qualifies as destroyed
-            isev=smaller & destd & ~iscen #qualifies as an event
+            isev=smaller & ~iscen #qualifies as an event
             if kind=='merger':
                 isev=smaller & destd & ~iscen #qualifies as an event
             else:
@@ -510,3 +513,6 @@ class Mergerdata:
         f=h5py.File(fname,'r')
         M0s_zis=np.array(f['M0s'])
         m_M0s_zis=np.array(f['m_M0s'])
+
+    def findsubs(hosti,zi):
+        self.cat[zi]
