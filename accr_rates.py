@@ -261,5 +261,16 @@ def accr_rates0(M0,N=None,excl=False):
     return
 
 def compare(M,zibeg,ziend,N=None):
+    mtype='m.fof'
     zis=np.arange(zibeg,ziend+1)
-    host
+    hostis=elements(hostcat[zibeg][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
+    if not N is None:
+        hostis=random.sample(hostis,N)
+    for zi in zis:
+        for hosti in hostis:
+            isprog_parent_meth=hostcat[zi+1]['chi.i']==hosti
+            print type(isprog_parent_meth)
+            isprog_parent_meth[hostcat[zi]['par.i'][hosti]]=False
+            pari=hostcat[zi]['par.i'][hosti]
+            progis=hostcat[zi+1]['n.par.i'][pari]
+            isprog_partner_meth=hostcat[zi+1]
