@@ -80,7 +80,33 @@ def mM0s_add_f(hosti0,excl=False):
                 nhosti=hostcat[zi]['par.n.i'][nhosti]
     return mM0s
 
-def accr_ratesz(M,zibeg,ziend,N=None):
+def mM0s_add_f_new(hosti0):
+    mtype='m.fof'
+    mM0s=[]
+    M0=hostcat[0][mtype][hosti0]
+    for zi in allzis[:-1]: 
+        #print'snapshot %i'%zi
+        #i_primaries=elements(hostcat[zi][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
+        #print'%i halos in range.'%len(i_primaries)
+        #if not N is None:
+        #    random.seed(1)
+        #    i_primaries=random.sample(i_primaries,N)
+        #print'evaluating %i'%len(i_primaries)
+        #Nhost+=len(i_primaries)
+         
+        #for i_primary in i_primaries:
+        #    M=hostcat[zi][mtype][i_primary]
+        i_primary=indices_tree(hostcat,0,zi,hosti0)
+        if i_primary<1:
+            return mM0s
+        is_prog=hostcat[zi+1]['chi.i']==i_primary
+        is_prog[hostcat[zi]['par.i'][i_primary]]=False #is_prog is a bool array. This line sets the elements corresponding to the main progentior to false, so we're not incorrectly counting a merger of the main progenitor with itself.
+        ms=hostcat[zi+1][mtype][is_prog]
+        mM0s_add=ms-M0
+        mM0s+=list(mM0s_add)
+    return mM0s
+
+def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i method. 
     '''
     timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
     filename='./dat/mMaccr_{1:d}_{0}.h5'.format(timestmp,M)
@@ -108,16 +134,22 @@ def accr_ratesz(M,zibeg,ziend,N=None):
         hostis=get_hostis(M,Mwid,zi)
         print'%i halos in range.'%len(hostis)
         if not N is None:
-            random.seed(1)
+            #random.seed(1)
             hostis=random.sample(hostis,N)
         print'evaluating %i'%len(hostis) 
         #print'host indices:'
         #print hostis
         Nhost+=len(hostis)
+        print'Nhost=%i'%Nhost
         pbar=ProgressBar()
-        for hosti in hostis:
-        #for hosti in pbar(hostis):
+        hostis_used=[]
+        #for hosti in hostis:
+        for hosti in pbar(hostis):
             #subis_counted[zi]=[]
+            if hosti in hostis_used:
+                #print'duplicate'
+                Nhost-=1
+                continue
             M=hostcat[zi]['m.fof'][hosti]
             '''
             #print'prev counted:'
@@ -163,8 +195,12 @@ def accr_ratesz(M,zibeg,ziend,N=None):
                 mMs+=list(mM_add.flatten())
                 #print mM0s[-2:]
                 nhosti=hostcat[zi]['par.n.i'][nhosti]
+                #print nhosti
+                #print type(nhosti)
+                hostis_used+=[nhosti]
     zbeg=hostcat.snap[zis[0]][1]
     zend=hostcat.snap[zis[-1]][1]
+    print'ending Nhost=%i'%Nhost
     return mMs,Nhost,zbeg,zend
     #return mMs,Nhost
 
@@ -197,10 +233,9 @@ def accr_ratesz_new(M,zibeg,ziend,N=None):
             mMs+=list(mMs_add)
     return mMs,Nhost,zbeg,zend
 
-
 def accr_rates0(M0,N=None,excl=False):  
     timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
-    filename='./dat/mM0accr_{1:d}_{0}_test.h5'.format(timestmp,M0)
+    filename='./dat/mM0accr_{1:d}_{0}.h5'.format(timestmp,M0)
     f = h5py.File(filename, 'w')
 
     mM0s=[]
@@ -216,10 +251,15 @@ def accr_rates0(M0,N=None,excl=False):
     pbar=ProgressBar()
     for hosti0 in pbar(hostis0):
         #print'\n\n\nhost0 idx: %i'%hosti0
-        mM0s+=mM0s_add_f(hosti0,excl=excl)
+        mM0s+=mM0s_add_f_new(hosti0)
+        #mM0s+=mM0s_add_f(hosti0,excl=excl)
    
     f.create_dataset('mM0s', data=mM0s)
     f.create_dataset('Nhost0',data=Nhost0)
     f.close()
 
     return
+
+def compare(M,zibeg,ziend,N=None):
+    zis=np.arange(zibeg,ziend+1)
+    host
