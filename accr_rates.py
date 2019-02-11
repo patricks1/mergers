@@ -25,8 +25,8 @@ hostcat=treepm.read(zis=allzis,catalog_kind='halo')
 msubtype='m.bound'
 Mwid=0.5
 
-def get_hostis(M,Mwid,zi):
-    hostis=elements(hostcat[zi]['m.fof'],lim=[M-Mwid/2.,M+Mwid/2.])
+def get_hostis(M,Mwid,zi,mtype='m.fof'):
+    hostis=elements(hostcat[zi][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
     return hostis
 
 def getsubs(hosti,zi):
@@ -48,6 +48,8 @@ def mM0s_add_f(hosti0,excl=False):
         #print'\nhost idx: %i'%hosti 
         if hosti<1:
             return mM0s
+        
+        #The following commented block of code uses the getinfall method to count when subhalos entered host halos. It may come in handy later, so I'm not deleting it.
         '''
         subis=getsubs(hosti,zi)
         isnew=np.array([not subi in subis_prev for subi in subis],
@@ -85,17 +87,6 @@ def mM0s_add_f_new(hosti0):
     mM0s=[]
     M0=hostcat[0][mtype][hosti0]
     for zi in allzis[:-1]: 
-        #print'snapshot %i'%zi
-        #i_primaries=elements(hostcat[zi][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
-        #print'%i halos in range.'%len(i_primaries)
-        #if not N is None:
-        #    random.seed(1)
-        #    i_primaries=random.sample(i_primaries,N)
-        #print'evaluating %i'%len(i_primaries)
-        #Nhost+=len(i_primaries)
-         
-        #for i_primary in i_primaries:
-        #    M=hostcat[zi][mtype][i_primary]
         i_primary=indices_tree(hostcat,0,zi,hosti0)
         if i_primary<1:
             return mM0s
@@ -106,7 +97,7 @@ def mM0s_add_f_new(hosti0):
         mM0s+=list(mM0s_add)
     return mM0s
 
-def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i method. 
+def accr_ratesz_partner_meth(M,zibeg,ziend,N=None,mtype='m.200c'): #This uses the par.n.i method. 
     '''
     timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
     filename='./dat/mMaccr_{1:d}_{0}.h5'.format(timestmp,M)
@@ -114,8 +105,6 @@ def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i meth
     '''
 
     zis=np.arange(zibeg,ziend+1)
-    print'zis:'
-    print zis
     mMs=[]
     #I might not need to do the following---make it so the program searches for host halos that match M at all zis being evaluated. Put those hostis into a dictionary corresponding to their zis.
     #hostis_mat={}
@@ -131,7 +120,8 @@ def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i meth
     Nhost=0
     for zi in zis[1:]: #The [1:] effectively makes it so we're correctly finding mergers that happen BETWEEN the zis specified.
         print'snapshot %i'%zi
-        hostis=get_hostis(M,Mwid,zi)
+        hostis=get_hostis(M,Mwid,zi-1,mtype=mtype) #get child indices whose masses are in range AFTER the merger
+        hostis=hostcat[zi-1]['par.i'][hostis] #get the host indices for the current snapshot
         print'%i halos in range.'%len(hostis)
         if not N is None:
             #random.seed(1)
@@ -140,7 +130,7 @@ def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i meth
         #print'host indices:'
         #print hostis
         Nhost+=len(hostis)
-        print'Nhost=%i'%Nhost
+        #print'Nhost=%i'%Nhost
         pbar=ProgressBar()
         hostis_used=[]
         #for hosti in hostis:
@@ -150,45 +140,12 @@ def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i meth
                 #print'duplicate'
                 Nhost-=1
                 continue
-            M=hostcat[zi]['m.fof'][hosti]
-            '''
-            #print'prev counted:'
-            #print subis_counted[zi-1]
-            subis=getsubs(hosti,zi)
-            #uncounted=np.array([not subi in subis_counted[zi-1] for subi in subis],
-            #                   dtype=bool)
-            #print'not yet counted:'
-            #print subis[uncounted]
-            subis_b4inf,zis_b4inf=getinfall(subis,zi)
-            infhaps=zis_b4inf>=0
-            subis=subis_b4inf[infhaps]
-            zis_b4inf=zis_b4inf[infhaps]
-            zis_inf=zis_b4inf-1
-            subis_inf=[indices_tree(subcat,zi_b4inf,zi_inf,subi_b4inf) 
-                       for zi_b4inf,zi_inf,subi_b4inf 
-                       in zip(zis_b4inf,zis_inf,subis_b4inf)]
-            infnow=zis_inf==zi
-            
-            ##DEBUGGING
-            return subis_inf,subis,infnow
-            ##END DEBUGGING
-            
-            #print infnow
-            print subis
-            print subis_inf
-            print zis_inf
-            print'test whether subis_inf=subis[infnow]:'
-            print subis_inf[infnow]==subis[infnow]
-            print ''
-            ms=subcat[zi][msubtype][subis[infnow]]
-            mMs_add=ms-M
-            mMs+=list(mMs_add)
-            #subis_counted[zi]+=list(subis[infhap])
-            '''
+            chii=hostcat[zi]['chi.i'][hosti]
+            M=hostcat[zi-1][mtype][chii]
             nhosti=hostcat[zi]['par.n.i'][hosti]
-            while nhosti>0:
+            while nhosti>-1:
                 #print'next host idx: %i'%nhosti
-                m=hostcat[zi]['m.fof'][nhosti]
+                m=hostcat[zi][mtype][nhosti]
                 mM_add=m-M
                 #print'mM: %f'%mM_add
                 #print mM0s[-1]
@@ -198,24 +155,24 @@ def accr_ratesz(M,zibeg,ziend,N=None): #This one works. It uses the par.n.i meth
                 #print nhosti
                 #print type(nhosti)
                 hostis_used+=[nhosti]
+        #print'Nhost=%i'%Nhost
     zbeg=hostcat.snap[zis[0]][1]
     zend=hostcat.snap[zis[-1]][1]
-    print'ending Nhost=%i'%Nhost
+    #print'ending Nhost=%i'%Nhost
     return mMs,Nhost,zbeg,zend
     #return mMs,Nhost
 
-def accr_ratesz_new(M,zibeg,ziend,N=None):
-    mtype='m.fof'
+def accr_ratesz_parent_meth(M,zibeg,ziend,N=None,mtype='m.200c'):
     zis=np.arange(zibeg,ziend+1)
     zbeg=hostcat.snap[zibeg][1]
     zend=hostcat.snap[ziend][1]
-    print'zis:'
-    print zis
+    #print'zis:'
+    #print zis
     mMs=[]
     Nhost=0
     pbar=ProgressBar()
     for zi in zis[:-1]: 
-        print'snapshot %i'%zi
+        print'\nsnapshot %i'%zi
         i_primaries=elements(hostcat[zi][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
         print'%i halos in range.'%len(i_primaries)
         if not N is None:
@@ -224,7 +181,8 @@ def accr_ratesz_new(M,zibeg,ziend,N=None):
         print'evaluating %i'%len(i_primaries)
         Nhost+=len(i_primaries)
         
-        for i_primary in i_primaries:
+        pbar=ProgressBar()
+        for i_primary in pbar(i_primaries):
             M=hostcat[zi][mtype][i_primary]
             is_prog=hostcat[zi+1]['chi.i']==i_primary
             is_prog[hostcat[zi]['par.i'][i_primary]]=False
@@ -232,6 +190,38 @@ def accr_ratesz_new(M,zibeg,ziend,N=None):
             mMs_add=ms-M
             mMs+=list(mMs_add)
     return mMs,Nhost,zbeg,zend
+
+'''
+def accr_ratesz_subs(M,zibeg,ziend,N=None):
+    mtype='m.max'
+    zis=np.arange(zibeg,ziend+1)
+    zbeg=hostcat.snap[zibeg][1]
+    zend=hostcat.snap[ziend][1]
+    #print'zis:'
+    #print zis
+    mMs=[]
+    Nhost=0
+    pbar=ProgressBar()
+    for zi in zis[:-1]: 
+        print'\nsnapshot %i'%zi
+        i_primaries=elements(hostcat[zi][mtype],lim=[M-Mwid/2.,M+Mwid/2.])
+        print'%i halos in range.'%len(i_primaries)
+        if not N is None:
+            random.seed(1)
+            i_primaries=random.sample(i_primaries,N)
+        print'evaluating %i'%len(i_primaries)
+        Nhost+=len(i_primaries)
+        
+        pbar=ProgressBar()
+        for i_primary in pbar(i_primaries):
+            M=hostcat[zi][mtype][i_primary]
+            is_prog=hostcat[zi+1]['chi.i']==i_primary
+            is_prog[hostcat[zi]['par.i'][i_primary]]=False
+            ms=hostcat[zi+1][mtype][is_prog]
+            mMs_add=ms-M
+            mMs+=list(mMs_add)
+    return mMs,Nhost,zbeg,zend
+'''
 
 def accr_rates0(M0,N=None,excl=False):  
     timestmp='{:%Y%m%d}'.format(datetime.datetime.now())
@@ -250,9 +240,7 @@ def accr_rates0(M0,N=None,excl=False):
     Nhost0=len(hostis0)
     pbar=ProgressBar()
     for hosti0 in pbar(hostis0):
-        #print'\n\n\nhost0 idx: %i'%hosti0
         mM0s+=mM0s_add_f_new(hosti0)
-        #mM0s+=mM0s_add_f(hosti0,excl=excl)
    
     f.create_dataset('mM0s', data=mM0s)
     f.create_dataset('Nhost0',data=Nhost0)
@@ -267,10 +255,27 @@ def compare(M,zibeg,ziend,N=None):
     if not N is None:
         hostis=random.sample(hostis,N)
     for zi in zis:
-        for hosti in hostis:
-            isprog_parent_meth=hostcat[zi+1]['chi.i']==hosti
-            print type(isprog_parent_meth)
-            isprog_parent_meth[hostcat[zi]['par.i'][hosti]]=False
+        print'snapshot: %i'%zi 
+        pbar=ProgressBar()
+        for hosti in pbar(hostis):
+            print'host index: %i'%hosti
+            isprog_parent=hostcat[zi+1]['chi.i']==hosti
+            #print type(isprog_parent)
+            #print isprog_parent
             pari=hostcat[zi]['par.i'][hosti]
-            progis=hostcat[zi+1]['n.par.i'][pari]
-            isprog_partner_meth=hostcat[zi+1]
+            isprog_parent[pari]=False
+
+            
+            parni=hostcat[zi+1]['par.n.i'][pari]
+            parnis=[]
+            while parni>-1:
+                parnis+=[parni]
+                parni=hostcat[zi+1]['par.n.i'][parni]
+                #hostis_used+=[nhosti]
+            isprog_partner=np.repeat(False,
+                                     len(hostcat[zi+1][mtype]))
+            isprog_partner[parnis]=True
+            if not np.array_equal(isprog_partner,isprog_parent):
+                print('problem with host index {0:d} parents at snapshot {1:d}'.format(hosti,
+                                                                                       zi))
+    return isprog_parent,isprog_partner 

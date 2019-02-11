@@ -48,22 +48,23 @@ class Mergerdata:
                   format(len(self.halis[0]),n))
             self.halis[0]=random.sample(self.halis[0],n) #Take a radom sample if the sample size is specified.
     
-    def populatemap(self,n=None):
+    def populatemap(self,mkind,zis,n=None):
         t0=self.cat.snap[0][2]
-        self.lbt=t0-[self.cat.snap[snap][2] for snap in self.snapshotindex]
-        indices_tree(self.cat,self.snapshotindex[0],self.snapshotindex[-1])
-        for snapshotnum in self.snapshotindex[1:]: #fill the halis dictionary at all snapshots after snapshot 0 with the index numbers of the parents of the snapshot 0 halos
+        self.lbt=t0-[self.cat.snap[snap][2] for snap in zis]
+        indices_tree(self.cat,zis[0],zis[-1])
+        for snapshotnum in zis[1:]: #fill the halis dictionary at all snapshots after snapshot 0 with the index numbers of the parents of the snapshot 0 halos
             self.halis[snapshotnum]=indices_tree(self.cat,0,snapshotnum,self.halis[0])
-        massmap=np.zeros([len(self.halis[0]),len(self.snapshotindex)])
+        massmap=np.zeros([len(self.halis[0]),len(zis)])
         pbar=ProgressBar()
-        for snapshotnum in pbar(self.snapshotindex):    
+        for snapshotnum in pbar(zis):    
             for massmaprow, halindexnum in enumerate(self.halis[snapshotnum]): #massmap rows are halos. massmap columns are snapshots (each at a specific redshift). This loop populates the massmap by putting each halo's mass at the given redshift in the corresponding row and column.
                 if halindexnum<0: #If the parent ID is negative, the halo doesn't exist yet, so keep its mass at 0.
                     continue
                 else:
-                    massmap[massmaprow,snapshotnum]=self.cat[snapshotnum][self.mkind][halindexnum]
-        #avgratio=np.average(massmap[:,snap]/massmap[:,0] for snap in self.snapshotindex)
-        self.avgratios=[np.average(10.**massmap[:,snap]/10.**massmap[:,0]) for snap in self.snapshotindex]
+                    massmap[massmaprow,snapshotnum]=self.cat[snapshotnum][mkind][halindexnum]
+        #avgratio=np.average(massmap[:,snap]/massmap[:,0] for snap in zis)
+        self.avgratios=[np.average(10.**massmap[:,snap]/10.**massmap[:,0]) for snap in zis]
+        self.avg_gal_m=[np.average(massmap[:,snap]) for snap in zis]
         self.massmap=massmap
     
     def gendistributionnew(self):
@@ -513,6 +514,3 @@ class Mergerdata:
         f=h5py.File(fname,'r')
         M0s_zis=np.array(f['M0s'])
         m_M0s_zis=np.array(f['m_M0s'])
-
-    def findsubs(hosti,zi):
-        self.cat[zi]
