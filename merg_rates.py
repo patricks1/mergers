@@ -206,6 +206,9 @@ class shamedTreepmClass(TreepmClass):
             #isolate primaries that exist and have mass at zi:
             #i_primaries=i_primaries[i_primaries>=0.]
             chiis=indices_tree(self.subcat,zi,zi-1,his)
+
+            print his[:50]
+            print chiis[:50]
             his=his[chiis>=0]
             chiis=chiis[chiis>=0]
             m_chis=self.subcat[zi-1][self.gmtype][chiis]
