@@ -199,16 +199,13 @@ class shamedTreepmClass(TreepmClass):
         #the second lowest:
         for zi in zis[:0:-1]:
         #for zi in pbar(zis[:0:-1]):
-            self.subcat[zi-1]['par.tree']={}
+            self.subcat[zi]['merg.tree']={}
             his=np.arange(len(self.subcat[zi][self.gmtype]))
-            #i_primaries=indices_tree(self.subcat,zis[0],zi,i0s)
-
-            #isolate primaries that exist and have mass at zi:
-            #i_primaries=i_primaries[i_primaries>=0.]
             chiis=indices_tree(self.subcat,zi,zi-1,his)
 
             print his[:50]
             print chiis[:50]
+            
             his=his[chiis>=0]
             chiis=chiis[chiis>=0]
             m_chis=self.subcat[zi-1][self.gmtype][chiis]
@@ -254,6 +251,26 @@ class shamedTreepmClass(TreepmClass):
     def gal_mMs_fromtree(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
         if not self.mtreebuilt:
             self.merg_tree(zibeg,ziend)
+        zis=np.arange(zibeg,ziend+1)
+        zbeg=self.subcat.snap[zibeg][1]
+        zend=self.subcat.snap[ziend][1]
+        mMs=[]
+        ms=[]
+        Ms=[]
+        zs=[]
+        iprim0s_merg=[]
+        
+        i_primaries0=self.get_primaries0(condtype,M0cond)
+        
+        for zi in zis[1:]:
+            i_primary=indices_tree(self.subcat,0,zi,i_primaries0)
+            Mz=self.subcat[zi]['m.star'][i_primary]
+            if Mz==0.:
+                continue
+            ms_add=self.subcat[zi]['par.tree'][i_primary]
+
+        
+
 
     def gal_mMs(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
         #Get list of m_*/M_* 
@@ -269,6 +286,7 @@ class shamedTreepmClass(TreepmClass):
         Ms=[]
         zs=[]
         iprim0s_merg=[]
+
         
         i_primaries0=self.get_primaries0(condtype,M0cond)
         
