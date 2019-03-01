@@ -245,7 +245,8 @@ class shamedTreepmClass(TreepmClass):
                 if chii not in self.subcat[zi-1]['par.tree']:
                     self.subcat[zi-1]['par.tree'][chii]=list([hi])
                 else:
-                    self.subcat[zi-1]['par.tree'][chii]+=hi
+                    branch=self.subcat[zi-1]['par.tree'][chii]
+                    branch.extend(hi)
         self.mtreebuilt=True
 
     def gal_mMs_fromtree(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
