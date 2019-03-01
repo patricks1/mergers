@@ -215,7 +215,8 @@ class shamedTreepmClass(TreepmClass):
             print'{0:d} galaxies in snapshot {1:d}'.format(len(his),zi)
 
             for hi,chii in zip(his,chiis):
-                #print hi
+                print hi
+                print type(hi)
                 '''
                 This shouldn't be necessary given that I'm removing primaries
                 where hi<0, so I'm commenting it. I'll delete it after testing.
@@ -246,7 +247,7 @@ class shamedTreepmClass(TreepmClass):
                     self.subcat[zi-1]['par.tree'][chii]=list([hi])
                 else:
                     branch=self.subcat[zi-1]['par.tree'][chii]
-                    branch.extend(hi)
+                    branch+=hi
         self.mtreebuilt=True
 
     def gal_mMs_fromtree(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
