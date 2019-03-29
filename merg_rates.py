@@ -239,17 +239,7 @@ class shamedTreepmClass(TreepmClass):
         elif typ=='host':
             hi0s=np.arange(len(cat[0][mtype]))
         '''
-
         hi0s=np.arange(len(cat[0][mtype]))
-        if through:
-            #take only main progenitors that exist at ziend
-            hiends=indices_tree(cat,0,ziend,hi0s)
-            goesthrough=hiends>=0
-            hi0s=hi0s[goesthrough]
-            #take only main progenitors that have non-zero mass at ziend
-            msend=cat[ziend][mtype][hi0s]
-            pos_msend=msend>0.
-            hi0s=hi0s[pos_msend]
 
         #Evaluate zis in reverse order from highest redshift through second to
         #lowest redshift:
@@ -302,44 +292,10 @@ class shamedTreepmClass(TreepmClass):
                 print'{0:d} merge with larger galaxies'.format(len(his),zi)
 
             for hi,chii in zip(his,chiis):
-                '''
-                This shouldn't be necessary given that I'm removing primaries
-                where hi<0, so I'm commenting it. I'll delete it after testing.
-                #if the parent doesn't exist at zi, go to the next parent:
-                if hi<0: 
-                    continue
-                '''
-                #chii=cat[zi]['chi.i'][hi]
-                #prim_chii=indices_tree(cat,zi,zi-1,hi)
-                #isolate the accreted galaxies:
-                #notprim=chii!=prim_chii
-                #chii=chii[notprim]
-                
-                '''
-                if hi==6877:
-                    print zi
-                    print hi
-                    print chii
-                    print cat[zi-1]['par.i'][chii]
-                    print hi==cat[zi-1]['par.i'][chii]
-                '''
-                '''
-                if hi==cat[zi-1]['par.i'][chii]: 
-                    #If the z halo is the primary parent of the z-1 halo, skip
-                    #to the next iteration of the loop.
-                    continue
-                '''
-                #print'it worked'
-                #if len(chii)==0:
-                #    continue
-                #print'chii %d'%chii
-                #print'hi %d'%hi
                 if chii not in mergbranch: 
                     mergbranch[chii]=[hi]
                 else:
-                    #branch=cat[zi-1]['par.branch'][chii]
                     mergbranch[chii]+=[hi]
-                #print mergbranch
 
             #Rename branch keys with 0 indices of main progenitor
             i0s=indices_tree(cat,zi-1,0,mergbranch.keys())
@@ -728,6 +684,13 @@ class shamedTreepmClass(TreepmClass):
                     sham_prop=self.hmtype,zis=self.shamzis,seed=self.seed)
         self.subisread=True
         self.hostisread=True
+
+    def sv_tpm(self):
+        tstmp='{:%Y%m%d}'.format(datetime.datetime.now())
+        fname='tpm_{0}'.format(tstmp)
+        with h5py.File(fname,'w') as f:
+            f.create_dataset('tpm',data=self)
+        return
 
 ###############################################################################
 
