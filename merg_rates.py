@@ -5,7 +5,8 @@ import time
 import h5py
 
 from wetzel_utils.utility.utility_catalog import indices_tree
-from wetzel_utils.utility.utility_array import elements #returns index numbers of elements of an array that fall within given limts
+#returns index numbers of elements of an array that fall within given limts:
+from wetzel_utils.utility.utility_array import elements 
 from subhalo_io_hack import TreepmClass
 from progressbar import ProgressBar
 import my_sham_hack as sham
