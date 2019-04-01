@@ -3,6 +3,7 @@ import random
 import datetime
 import time
 import h5py
+import pandas as pd
 
 from wetzel_utils.utility.utility_catalog import indices_tree
 #returns index numbers of elements of an array that fall within given limts:
@@ -20,8 +21,8 @@ import matplotlib.pyplot as plt
 #from matplotlib import rcParams
 
 class shamedTreepmClass(TreepmClass):
-    def __init__(self,scat=0.,dis_mf=0.,source='li-march',
-                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=33,
+    def __init__(self,scat=0.,dis_mf=0.,source='rand',
+                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
                  seed=None):
         TreepmClass.__init__(self)
         #super(shamedTreepmClass,self).__init__()
@@ -37,9 +38,12 @@ class shamedTreepmClass(TreepmClass):
         self.seed=seed
         self.subisread=False
         self.hostisread=False
-        self.mtree_host_built=False
-        self.mtree_sub_built=False
-        self.mtree_gal_built=False
+        self.mtree_host_blt=False
+        self.mtree_sub_blt=False
+        self.mtree_gal_blt=False
+        self.mptree_host_blt=False
+        self.mptree_sub_blt=False
+        self.mptree_gal_blt=False
         if catkind=='subhalo':
             self.readsub()
         elif catkind=='halo':
@@ -104,38 +108,6 @@ class shamedTreepmClass(TreepmClass):
             f.create_dataset('zend',data=out[7])
             f.create_dataset('zs',data=out[8])
     '''
-
-    def merg_rates_z(self,M,zibeg,ziend,N=None):
-        if not self.hostisread:
-            self.readhost()
-        if not self.subisread:
-            self.readsub()
-        zis=np.arange(zibeg,ziend+1)
-        zbeg=self.hostcat.snap[zibeg][1]
-        zend=self.hostcat.snap[ziend][1]
-        mMs=[]
-        Nhost=0
-        pbar=ProgressBar()
-        for zi in zis[:-1]:
-            print'\nsnapshot %i'%zi
-            hostis=elements(self.hostcat[zi][self.hmtype],lim=[M-self.Mwid/2.,M+self.Mwid/2.])
-            cenis=self.hostcat[zi]['cen.i'][hostis]
-            print'%i halos in range.'%len(hostis)
-            if not N is None:
-                random.seed(1)
-                cenis=random.sample(cenis,N)
-            print'evaluating %i'%len(cenis)
-            Nhost+=len(cenis)
-
-            pbar=ProgressBar()
-            for ceni,hosti in pbar(zip(cenis,hostis)):
-                M=self.hostcat[zi][self.hmtype][hosti]
-                is_prog=self.subcat[zi+1]['chi.i']==ceni
-                is_prog[self.subcat[zi]['par.i'][ceni]]=False
-                ms=self.subcat[zi+1][self.smtype][is_prog]
-                mMs_add=ms-M
-                mMs+=list(mMs_add)
-        return mMs,Nhost,zbeg,zend
 
     def merg_rates_z_gal(self,M,zibeg,ziend,N=None):
         #Get list of m_{*,z}/M_{*,z} for galaxies whose M_{host hal,z}
@@ -233,15 +205,9 @@ class shamedTreepmClass(TreepmClass):
         zis=np.arange(zibeg,ziend+1)
         zbeg=cat.snap[zibeg][1]
         zend=cat.snap[ziend][1]
-
-        '''
-        if typ in ['gal','subhal']:
-            hi0s=np.arange(len(cat[0][mtype]))
-        elif typ=='host':
-            hi0s=np.arange(len(cat[0][mtype]))
-        '''
         hi0s=np.arange(len(cat[0][mtype]))
 
+        print'building merger tree:'
         #Evaluate zis in reverse order from highest redshift through second to
         #lowest redshift:
         for zi in zis[:0:-1]:
@@ -254,22 +220,23 @@ class shamedTreepmClass(TreepmClass):
             elif typ=='host':
                 brstr='merg.branch'
             cat[zi][brstr]={}
-            cat[zi]['par.branch']={}
             mergbranch=cat[zi][brstr]
-            parbranch=cat[zi]['par.branch']
-
-            #fill this zi branch of the parent tree
-            paris=indices_tree(cat,0,zi,hi0s)
-            for hi0,pari in zip(hi0s,paris):
-                parbranch[hi0]=pari
 
             his=np.arange(len(cat[zi][mtype]))
+            #Take each halo at zi and find out either what it merged into
+            #or what it's new index is at zi-1:
             chiis=indices_tree(cat,zi,zi-1,his)
             
             if typ in ['host','subhal']:
                 print'{0:d} halos in snapshot {1:d}'.format(len(his),zi)
             elif typ=='gal': 
                 print'{0:d} galaxies in snapshot {1:d}'.format(len(his),zi)
+
+            allms_chi=cat[zi-1][mtype]
+            allms=cat[zi][mtype]
+            if (len(allms_chi)==0)or(len(allms)==0):
+                #At high z, there may be no mass array.
+                continue
 
             #Only evaluate where the halo's child exists:
             mask=chiis>=0
@@ -279,13 +246,28 @@ class shamedTreepmClass(TreepmClass):
             his=his[mask]
             chiis=chiis[mask]
             
+            #Only evaluate where both the primary and secondary halo have
+            #positive masses
+            primis=cat[zi-1]['par.i'][chiis]
+            prim_ms=cat[zi][mtype][primis]
+            sec_ms=cat[zi][mtype][his]
+            notnan=~(np.isnan(sec_ms) | np.isnan(prim_ms))
+            #Get a mask for notnan objects that have both prim and sec masses:
+            hasmasses=prim_ms[notnan]*sec_ms[notnan]>0.
+            #Apply the notnan mask to get the notnan arrays and then apply the
+            #hasmasses mask.
+            his=his[notnan][hasmasses]
+            chiis=chiis[notnan][hasmasses]
+
+            '''
             #Only evaluate where both halo and its child have positive masses
-            ms_chi=cat[zi-1][mtype][chiis]
-            ms=cat[zi][mtype][his]
+            ms_chi=allms_chi[chiis]
+            ms=allms[his]
             notnan=~(np.isnan(ms_chi) | np.isnan(ms))
             hasmasses=(ms[notnan]>0.) & (ms_chi[notnan]>0.)
             chiis=chiis[notnan][hasmasses]
             his=his[notnan][hasmasses]
+            '''
             
             if typ in ['host','subhal']:
                 print'{0:d} merge with larger halos'.format(len(his),zi)
@@ -298,16 +280,219 @@ class shamedTreepmClass(TreepmClass):
                 else:
                     mergbranch[chii]+=[hi]
 
+            '''
             #Rename branch keys with 0 indices of main progenitor
+            #Removing this because some mergers are not mergers into the main
+            #progenitor but mergers into a galaxy that will itself merge into
+            #the main progenitor
             i0s=indices_tree(cat,zi-1,0,mergbranch.keys())
             for chii,i0 in zip(mergbranch.keys(),i0s):
                 mergbranch[i0]=mergbranch.pop(chii)
+            '''
         if typ=='gal':
-            self.mtree_gal_built=True
+            self.mtree_gal_blt=True
         elif typ=='subhal':
-            self.mtree_sub_built=True
+            self.mtree_sub_blt=True
         elif typ=='host':
-            self.mtree_host_built=True
+            self.mtree_host_blt=True
+
+    def mp_tree(self,typ='gal',zibeg=0,ziend=34):
+        if typ not in ['gal','subhal','host']:
+            raise ValueError('typ must be "gal", "subhal" or "host".')
+        if typ in ['gal','subhal']:
+            if not self.subisread:
+                self.readsub()
+            cat=self.subcat
+            if typ=='gal':
+                mtype=self.gmtype
+            elif typ=='subhal':
+                mtype=self.smtype
+        elif typ=='host':
+            if not self.hostisread:
+                self.readhost()
+            cat=self.hostcat
+            mtype=self.hmtype
+
+        zis=np.arange(zibeg,ziend+1)
+        zbeg=cat.snap[zibeg][1]
+        zend=cat.snap[ziend][1]
+
+        hi0s=np.arange(len(cat[0][mtype]))
+
+        #Evaluate zis in ascending order, tracing back z=0 main progenitors so
+        #we have a list of main progenitors at every snapshot.
+        print'building main progenitor tree:'
+        pbar=ProgressBar()
+        for zi in pbar(zis):
+            #initialize mp.branch
+            if typ=='gal':
+                brstr='gal.mp.branch'
+            elif typ=='subhal':
+                brstr='sub.mp.branch'
+            elif typ=='host':
+                brstr='mp.branch'
+            cat[zi][brstr]={}
+            mpbranch=cat[zi][brstr]
+
+            #fill this zi branch of the main-progenitor tree
+            #Only add paris for mps that have positive indices and mass at z.
+            #Make a copy of hi0s. "exatz" stands for "exists at z":
+            hi0s_exatz=hi0s[:] 
+            paris=indices_tree(cat,0,zi,hi0s_exatz)
+
+            exists=paris>=0
+            paris=paris[exists]
+            hi0s_exatz=hi0s_exatz[exists]
+
+            ms=cat[zi][mtype]
+            if len(ms)==0:
+                #At high z, there may be no mass array.
+                continue
+            ms=ms[paris]
+
+            #Sometimes, especially (and maybe only) because of SHAM, masses are
+            #nan. Get rid of the galaxies/halos corresponding to those.
+            notnan=~np.isnan(ms)
+            paris=paris[notnan]
+            hi0s_exatz=hi0s_exatz[notnan]
+            ms=ms[notnan]
+
+            hasmass=ms>0.
+            paris=paris[hasmass]
+            hi0s_exatz=hi0s_exatz[hasmass]
+
+            for hi0,pari in zip(hi0s_exatz,paris):
+                mpbranch[hi0]=pari
+        if typ=='gal':
+            self.mptree_gal_blt=True
+        elif typ=='subhal':
+            self.mptree_sub_blt=True
+        elif typ=='host':
+            self.mptree_host_blt=True
+
+    '''
+    def N_mu_ft(self,M0,typ,Mtype='z',ziend=34,through=False):
+
+        #THIS IS NOT THE MOST UP-TO-DATE VERISION OF THE FUNCTION. 
+        #THE MOST UP-TO-DATE VERSION IS CURRENTLY OUTSIDE THE CLASS, AT THE
+        #BOTTOM OF THE CODE.
+
+        #Plots the cumulative number of mergers per 
+        #halo/galaxy, N(>mu), where mu is m/M.
+        #"ft" stands for "function using tree"
+        if not typ in ['gal','cengal','host','subhal','censubhal']:
+            raise ValueError('typ must be "gal", "cengal", "subhal", '
+                             '"censubhal", or "host"')
+        if typ in ['gal','cengal']:
+            mtype=self.gmtype
+            #set the merger-branch and main-progenitor-branch strings
+            m_brstr='gal.merg.branch'
+            mp_brstr='gal.mp.branch'
+            self.readsub()
+            cat=self.subcat
+            if not self.mptree_gal_blt:
+                self.mp_tree(typ=typ,ziend=ziend)
+            if not self.mtree_gal_blt:
+                self.merg_tree(typ=typ,ziend=ziend)
+        elif typ in ['subhal','censubhal']:
+            mtype=self.smtype
+            #set the merger-branch and main-progenitor-branch strings
+            m_brstr='sub.merg.branch'
+            mp_brstr='sub.mp.branch'
+            self.readsub()
+            cat=self.subcat
+            if not self.mptree_sub_blt:
+                self.mp_tree(typ=typ,ziend=ziend)
+            if not self.mtree_sub_blt:
+                self.merg_tree(typ=typ,ziend=ziend)
+        elif typ=='host':
+            mtype=self.hmtype
+            #set the merger-branch and main-progenitor-branch strings
+            m_brstr='merg.branch'
+            mp_brstr='mp.branch'
+            self.readhost()
+            cat=self.hostcat
+            if not self.mptree_host_blt:
+                self.mp_tree(typ=typ,ziend=ziend)
+            if not self.mtree_host_blt:
+                self.merg_tree(typ=typ,ziend=ziend)
+        allM0s=cat[0][mtype]
+        inrange=(allM0s<M0+self.Mwid/2.) & (allM0s>M0-self.Mwid/2.)
+        hi0s=np.arange(len(allM0s))[inrange]
+        if typ in ['cengal','censubhal']:
+            iscen=cat[0]['ilk'][hi0s]==1
+            hi0s=hi0s[iscen]
+        
+        if through:
+            #take only main progenitors that exist at ziend                        
+            hiends=indices_tree(cat,0,ziend,hi0s)                                  
+            goesthrough=hiends>=0                                                  
+            hi0s=hi0s[goesthrough]
+            hiends=hiends[goesthrough]
+            #take only main progenitors whose mass is not nan at
+            #ziend
+            msend=cat[ziend][mtype][hiends]
+            notnan=~np.isnan(msend)
+            hi0s=hi0s[notnan]
+            hiends=hiends[notnan]
+            msend=msend[notnan]
+            #take only main progenitors that have non-zero mass at
+            #ziend                                  
+            pos_msend=msend>0.                                                     
+            hi0s=hi0s[pos_msend]             
+        
+        allzis=np.arange(ziend+1)
+        mzMs=[]
+
+        print'\nrunning N(>mu):'
+        for hi0 in hi0s:
+            M0=cat[0][mtype][hi0]
+            if Mtype=='0':
+                M=M0
+            for zi in allzis[1:]:
+                mergbranch=cat[zi][m_brstr]
+                #Set the mpbranch one snapshot behind, because the keys
+                #of the mergbranch are the children into which two or more
+                #hals/gals merg.
+                mpbranch=cat[zi-1][mp_brstr]
+                if hi0 in mpbranch:
+                    chii=mpbranch[hi0]
+                    if chii in mergbranch:
+                        merg_is=mergbranch[chii]
+                    else:
+                        continue
+                else:
+                    continue
+                ms=cat[zi][mtype][merg_is]
+                if Mtype=='z':
+                    #Using the zi branch of the main-progenitor tree, get the 
+                    #index of the primary parent at zi in order to get
+                    #the denominator Mz in mu=mz/Mz
+                    primi=cat[zi][mp_brstr][hi0]
+                    M=cat[zi][mtype][primi]
+                mzMs_add=list(ms-M)
+                mzMs+=mzMs_add
+        mzMs=-np.abs(mzMs)
+
+        midbins_s_12,N_gmratio_s_12=np.loadtxt('dat/stewart12m_M0.csv',
+                                               delimiter=',',
+                                               unpack=True)
+        midbins_s_13,N_gmratio_s_13=np.loadtxt('dat/stewart13m_M0.csv',
+                                               delimiter=',',
+                                               unpack=True)        
+
+        fig=plt.figure(figsize=(8,6))
+        ax=fig.add_subplot(111)
+        ax.hist(mzMs,bins=50,cumulative=-1,histtype='step',lw=2,
+                weights=np.repeat(1./len(hi0s),len(mzMs)))
+        ax.plot(np.log10(midbins_s_12),N_gmratio_s_12,'x',mec='r',
+                mfc='None',
+                  ms=12,mew=2,)
+        ax.set_xlim(-3,0)
+        ax.set_ylim(1e-3,2e1)
+        ax.set_yscale('log')
+        plt.show()
+    '''
 
     def gal_mMs_fromtree(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
         if not self.mtreebuilt:
@@ -403,7 +588,6 @@ class shamedTreepmClass(TreepmClass):
         #t1=time.time()
         #print'run time: {0}'.format(t1-t0)
         return mMs,ms,Ms,iprim0s_merg,i_primaries0,Nprim0,zbeg,zend,zs
-
 
     '''
     def quench_dat(mus,mMs,iprim0_merg,iprim0_keys):
@@ -659,44 +843,60 @@ class shamedTreepmClass(TreepmClass):
         return mMs,ms,Ms,zs
 
     def readhost(self,skipsham=True):
-        self.hostcat=self.read(zis=self.allzis,catalog_kind='halo')
-        if not skipsham:
-            sham.assign(self.hostcat,scat=self.scat,dis_mf=self.dis_mf,
-                        source=self.source,
-                        sham_prop=self.hmtype,zis=self.shamzis,seed=self.seed)
-        self.hostisread=True
+        if not self.hostisread:
+            self.hostcat=self.read(zis=self.allzis,catalog_kind='halo')
+            if not skipsham:
+                #sham.assign(self.hostcat,scat=self.scat,dis_mf=self.dis_mf,
+                #            source=self.source,
+                #            sham_prop=self.hmtype,zis=self.shamzis,
+                #            seed=self.seed)
+                self.run_sham(self.hostcat,self.hmtype)
+            self.hostisread=True
 
-    def readsub(self):
-        self.subcat=self.read(zis=self.allzis,catalog_kind='subhalo')
-        sham.assign(self.subcat,scat=self.scat,dis_mf=self.dis_mf,
-                    source=self.source,
-                    #sham_prop=self.smtype,zis=self.shamzis)
-                    sham_prop=self.smtype,zis=self.shamzis,seed=self.seed)
-        self.subisread=True
+    def readsub(self,skipsham=False):
+        if not self.subisread:
+            self.subcat=self.read(zis=self.allzis,catalog_kind='subhalo')
+            if not skipsham:
+                #sham.assign(self.subcat,scat=self.scat,dis_mf=self.dis_mf,
+                #            source=self.source,
+                #            sham_prop=self.smtype,zis=self.shamzis,seed=self.seed)
+                self.run_sham(self.subcat,self.smtype)
+            self.subisread=True
 
     def readboth(self):
-        self.subcat,self.hostcat=self.read(zis=self.allzis,
-                                           catalog_kind='both')
-        sham.assign(self.subcat,scat=self.scat,dis_mf=self.dis_mf,
-                    source=self.source,
-                    sham_prop=self.smtype,zis=self.shamzis,seed=self.seed)
-        sham.assign(self.hostcat,scat=self.scat,dis_mf=self.dis_mf,
-                    source=self.source,
-                    sham_prop=self.hmtype,zis=self.shamzis,seed=self.seed)
-        self.subisread=True
-        self.hostisread=True
+        self.readhost()
+        self.readsub()
 
-    def sv_tpm(self):
-        tstmp='{:%Y%m%d}'.format(datetime.datetime.now())
-        fname='tpm_{0}'.format(tstmp)
-        with h5py.File(fname,'w') as f:
-            f.create_dataset('tpm',data=self)
-        return
+    def run_sham(self,cat,sham_prop):
+        smf_mtrx=pd.read_csv('smf.csv')  
+        print'running SHAM:'
+        if self.source=='rand':
+            self.source={}
+            pbar=ProgressBar()
+            for zi in pbar(self.shamzis):
+                #Chose random smf from those allowed at this z.
+                allowed=np.array(smf_mtrx.loc[zi,:]).astype('bool')
+                all_smf=np.arange(len(allowed))
+                choices=smf_mtrx.columns.values[allowed]
+                source=random.choice(choices) 
+                self.source[zi]=source
+                sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
+                            source=source,       #this one is important
+                            sham_prop=sham_prop, #this one is important
+                            zis=[zi],            #this one is important
+                            seed=self.seed)
+        else:
+            sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
+                        source=self.source,  #this one is important
+                        sham_prop=sham_prop, #this one is important
+                        zis=self.shamzis,
+                        seed=self.seed)
+
 
 ###############################################################################
 
-#should be deprecated, but some other functions use it, so I'm keeping for now.
 def read_galmMs(Mcond,condtype,Mtime,scat,tstmp,seed=None,apnd=''):
+#should be deprecated, but some other functions use it, so I'm keeping for now.
     Mtime=str(Mtime)
     if (seed is None) or (not scat):
         seedstr=''
@@ -840,6 +1040,7 @@ def dndz_ofz(mMs,zs,mu_min,zkeys,Nprim0,
     return dNdzs,zaxis
 
 def dndz(mMs,Nhost,dz):
+    #There's not much reason to use this anymore, now that we have dNdx_ofmu.
     bins=np.linspace(-5,0,200)
     fig=plt.figure(figsize=(12,10))
     ax=fig.add_subplot(111)
@@ -865,6 +1066,25 @@ def count(mMs,Nhost):
     plt.clf()
     return n,midbins
 
+def through_f(cat,hi0s,mtype,ziend):                                                
+    #take only main progenitors that exist at ziend                             
+    hiends=indices_tree(cat,0,ziend,hi0s)                                       
+    goesthrough=hiends>=0                                                       
+    hi0s=hi0s[goesthrough]                                                      
+    hiends=hiends[goesthrough]                                                  
+    #take only main progenitors whose mass is not nan at                        
+    #ziend                                                                      
+    msend=cat[ziend][mtype][hiends]                                             
+    notnan=~np.isnan(msend)                                                     
+    hi0s=hi0s[notnan]                                                           
+    hiends=hiends[notnan]                                                       
+    msend=msend[notnan]                                                         
+    #take only main progenitors that have non-zero mass at                      
+    #ziend                                                                      
+    pos_msend=msend>0.                                                          
+    hi0s=hi0s[pos_msend]                                                        
+    return hi0s
+
 def gal_hgram_dat_noz(rng,mMs,iprim0s_merg,iprim0s_keys):
     #Generate a list of the number of times a merger happens within the 
     #given range. Each datapoint represents the merger count for a single
@@ -876,4 +1096,412 @@ def gal_hgram_dat_noz(rng,mMs,iprim0s_merg,iprim0s_keys):
                  for ismp in
                  (iprim0s_merg==key for key in iprim0s_keys)])
     return Ns
-   
+
+def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=33,
+         through=False):
+    #returns dNdz(z) or dNdt(z) around specific mu=m/M and M0 values.
+    if not typ in ['gal','cengal','host','subhal','censubhal']:             
+        raise ValueError('typ must be "gal", "cengal", "subhal", '          
+                         '"censubhal", or "host"')                
+    if typ in ['gal','cengal']:                                             
+        mtype=self.gmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='gal.merg.branch'                                           
+        mp_brstr='gal.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_gal_blt:                                         
+            self.mp_tree(typ='gal')                               
+        if not self.mtree_gal_blt:                                          
+            self.merg_tree(typ='gal')                             
+    elif typ in ['subhal','censubhal']:                                     
+        mtype=self.smtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='sub.merg.branch'                                           
+        mp_brstr='sub.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_sub_blt:                                         
+            self.mp_tree(typ='subhal')                               
+        if not self.mtree_sub_blt:                                          
+            self.merg_tree(typ='subhal')                             
+    elif typ=='host':                                                       
+        mtype=self.hmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='merg.branch'                                               
+        mp_brstr='mp.branch'                                                
+        self.readhost()                             
+        cat=self.hostcat                                                    
+        if not self.mptree_host_blt:                                        
+            self.mp_tree(typ='host')                               
+        if not self.mtree_host_blt:                                         
+            self.merg_tree(typ='host')                  
+    
+    zis=np.arange(zibeg,ziend+1)   
+    allM0s=cat[0][mtype]
+    inrange=(allM0s<Mcond+self.Mwid/2.) & (allM0s>Mcond-self.Mwid/2.)
+    if typ in ['cengal','subhal']:
+        iscen=cat[0]['ilk']==1
+        hi0s=np.arange(len(allM0s))[inrange & iscen]
+    else:
+        hi0s=np.arange(len(allM0s))[inrange]    
+    if through:
+        hi0s=through_f(cat,hi0s,mtype,ziend)
+    M0s=cat[0][mtype][hi0s] #Do I need this?
+    
+    Nprim0=len(hi0s)
+    dNdxs=[]
+    zs=[cat[zi].snap['z'] for zi in zis]
+    ts=[cat[zi].snap['t'] for zi in zis] #not currently used
+    
+    for zi in zis:
+        dN=0.
+        mergbranch=cat[zi][m_brstr]
+        #Set the mpbranch one snapshot behind, because the keys         
+        #of the mergbranch are the children into which two or more          
+        #hals/gals merg.     
+        mpbranch=cat[zi-1][mp_brstr]
+       
+        for hi0 in hi0s:
+            if hi0 in mpbranch:                
+                chii=mpbranch[hi0]
+                if chii in mergbranch:
+                    merg_is=mergbranch[chii]
+                else:
+                    continue
+            else:
+                continue
+                
+            primi=cat[zi][mp_brstr][hi0]
+            if primi<0:
+                print('hi0 {0:d} has a negative index at zi='
+                      '{1:d}'.format(hi0,zi))
+                continue
+            M=cat[zi][mtype][primi]
+            ms=cat[zi][mtype][merg_is]
+            
+            mus=-np.abs(ms-M)
+            in_mu_range=mus>=mu_cond
+            dN+=np.sum(in_mu_range)
+            
+        if dx=='dz':
+            dx=cat[zi].snap['z']-cat[zi-1].snap['z']
+        elif dx=='dt':
+            dx=cat[zi-1].snap['t']-cat[zi].snap['t']
+        dNdx=float(dN)/dx
+        dNdxs+=[dNdx]
+    dNdxs=np.array(dNdxs)
+    dNdxs/=float(Nprim0)
+    return zs,dNdxs
+
+def dNdx_ofmu(self,Mcond,typ,Mtime='z',dx='dz',forcem200=False,zibeg=0,
+        ziend=1,through=False):
+    if not typ in ['gal','cengal','host','subhal','censubhal']:             
+        raise ValueError('typ must be "gal", "cengal", "subhal", '          
+                         '"censubhal", or "host"')                
+    if typ in ['gal','cengal']:                                             
+        mtype=self.gmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='gal.merg.branch'                                           
+        mp_brstr='gal.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_gal_blt:                                         
+            self.mp_tree(typ='gal')                               
+        if not self.mtree_gal_blt:                                          
+            self.merg_tree(typ='gal')                             
+    elif typ in ['subhal','censubhal']:                                     
+        mtype=self.smtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='sub.merg.branch'                                           
+        mp_brstr='sub.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_sub_blt:                                         
+            self.mp_tree(typ='subhal')                               
+        if not self.mtree_sub_blt:                                          
+            self.merg_tree(typ='subhal')                             
+    elif typ=='host':                                                       
+        mtype=self.hmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='merg.branch'                                               
+        mp_brstr='mp.branch'                                                
+        self.readhost()                             
+        cat=self.hostcat                                                    
+        if not self.mptree_host_blt:                                        
+            self.mp_tree(typ='host')                               
+        if not self.mtree_host_blt:                                         
+            self.merg_tree(typ='host')                  
+    mus,dNs=N_mu_ft(self,Mcond,typ,Mtime,forcem200,zibeg,ziend,through)
+    if dx=='dz':
+        zbeg=cat[zibeg].snap['z']
+        zend=cat[ziend].snap['z']
+        dx=zend-zbeg
+    if dx=='dt':
+        tbeg=cat[zibeg].snap['t']
+        tend=cat[ziend].snap['t']
+        dx=tbeg-tend
+    dNdxs=dNs/dx
+    return mus,dNdxs 
+
+def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
+            through=False):
+    #Plots the cumulative number of mergers per                             
+    #halo/galaxy, N(>mu), where mu is m/M.                                  
+    #"ft" stands for "function using tree"                                  
+    if not typ in ['gal','cengal','host','subhal','censubhal']:             
+        raise ValueError('typ must be "gal", "cengal", "subhal", '          
+                         '"censubhal", or "host"')                          
+    if typ in ['gal','cengal']:                                             
+        mtype=self.gmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='gal.merg.branch'                                           
+        mp_brstr='gal.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_gal_blt:                                         
+            self.mp_tree(typ='gal')                               
+        if not self.mtree_gal_blt:                                          
+            self.merg_tree(typ='gal')                             
+    elif typ in ['subhal','censubhal']:                                     
+        mtype=self.smtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='sub.merg.branch'                                           
+        mp_brstr='sub.mp.branch'                                            
+        self.readsub()                                                      
+        cat=self.subcat                                                     
+        if not self.mptree_sub_blt:                                         
+            self.mp_tree(typ='subhal')                               
+        if not self.mtree_sub_blt:                                          
+            self.merg_tree(typ='subhal')                             
+    elif typ=='host':                                                       
+        mtype=self.hmtype                                                   
+        #set the merger-branch and main-progenitor-branch strings           
+        m_brstr='merg.branch'                                               
+        mp_brstr='mp.branch'                                                
+        self.readhost()                             
+        cat=self.hostcat                                                    
+        if not self.mptree_host_blt:                                        
+            self.mp_tree(typ=typ)                               
+        if not self.mtree_host_blt:                                         
+            self.merg_tree(typ=typ)                             
+    allM0s=cat[0][mtype]                                                    
+    if forcem200 & (typ!='host'):
+        self.readhost()
+        hosti0s=self.subcat[0]['halo.i']
+        allM0s=self.hostcat[0]['m.200c'][hosti0s]
+    inrange=(allM0s<M0+self.Mwid/2.) & (allM0s>M0-self.Mwid/2.)             
+    hi0s=np.arange(len(allM0s))[inrange]
+    if typ in ['cengal','censubhal']:                                       
+        iscen=cat[0]['ilk'][hi0s]==1                                        
+        hi0s=hi0s[iscen]                                                    
+        #print'%d halos match the M0 condition and are centrals'%hi0s.size
+    
+    if through:                                                             
+        hi0s=through_f(cat,hi0s,mtype,ziend)
+
+    allzis=np.arange(zibeg,ziend+1)                                   
+    mzMs=[]                                                                 
+
+    print'\nrunning N(>mu)'                                                
+    
+    self.checkdic={}
+    self.mcheckdic={}
+    self.Mcheckdic={}
+    for hi0 in hi0s:                                                        
+        M0=cat[0][mtype][hi0]                                               
+        if Mtime=='0':                                                      
+            M=M0                                                            
+        for zi in allzis[1:]:                                               
+            mergbranch=cat[zi][m_brstr]                                     
+            mpbranch=cat[zi-1][mp_brstr]                                    
+            if hi0 in mpbranch:                                             
+                chii=mpbranch[hi0]                                          
+                if chii in mergbranch:                                      
+                    merg_is=mergbranch[chii]                                
+                else:                                                       
+                    continue                                                
+            else:                                                           
+                continue                                                    
+            ms=cat[zi][mtype][merg_is]                                      
+            if Mtime=='z':                                                  
+                primi=cat[zi][mp_brstr][hi0]                                
+                M=cat[zi][mtype][primi]                                     
+            if forcem200 & (typ!='host'):
+                self.readhost()
+                if Mtime=='z':
+                    primi=cat[zi][mp_brstr][hi0]                                
+                    hosti=self.subcat[zi]['halo.i'][primi]
+                    M=self.hostcat[zi]['m.200c'][hosti]
+                elif Mtime=='0':
+                    hosti0=self.subcat[0]['halo.i'][hi0]
+                    M=self.hostcat[0]['m.200c'][hosti0]
+            mzMs_add=list(ms-M)                                             
+            mzMs+=mzMs_add                                                  
+            ###THIS IS FOR TESTING. WE CAN REMOVE IT LATER.###
+            if hi0 in self.checkdic:
+                self.checkdic[hi0]+=mzMs_add
+                self.mcheckdic[hi0]+=list(ms)
+            else:
+                self.checkdic[hi0]=mzMs_add
+                self.Mcheckdic[hi0]=M
+                self.mcheckdic[hi0]=list(ms)
+            ##################################################
+        '''
+        for zi in allzis[1:]:                                               
+            mergbranch=cat[zi][m_brstr]                                     
+            mpbranch=cat[zi-1][mp_brstr]                                    
+            if hi0 in mpbranch:                                             
+                chii=mpbranch[hi0]                                          
+                if chii in mergbranch:                                      
+                    merg_is=mergbranch[chii]                                
+                else:                                                       
+                    continue                                                
+            else:                                                           
+                continue                                                    
+            ms=cat[zi][mtype][merg_is]
+            primi=cat[zi-1]['par.i'][chii]
+            hosti=cat[zi]['halo.i'][primi]
+            M=self.hostcat[zi]['m.200c'][hosti]
+            mzMs_add=list(ms-M)
+            mzMs+=mzMs_add
+            if hi0 in self.checkdic:
+                self.checkdic[hi0]+=mzMs_add
+                self.mcheckdic[hi0]+=list(ms)
+            else:
+                self.checkdic[hi0]=mzMs_add
+                self.Mcheckdic[hi0]=M
+                self.mcheckdic[hi0]=list(ms)
+        '''
+    mzMs=-np.abs(mzMs)             
+    
+    fig=plt.figure()
+    ax=fig.add_subplot(111)
+    Ns,muaxis=ax.hist(mzMs,bins=200,cumulative=-1,               
+                      weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
+    plt.clf()
+    muaxis=(muaxis[1:]+muaxis[:-1])/2.
+    return muaxis,Ns
+
+def merg_rates_z(self,M,zibeg,ziend,N=None):
+    if not self.hostisread:
+        self.readhost()
+    if not self.subisread:
+        self.readsub()
+    zis=np.arange(zibeg,ziend+1)
+    zbeg=self.hostcat.snap[zibeg][1]
+    zend=self.hostcat.snap[ziend][1]
+    mMs=[]
+    Nhost=0
+    pbar=ProgressBar()
+    ###TESTING
+    self.mrz_checkdic={}
+    self.mrz_mcheckdic={}
+    self.mrz_Mcheckdic={}
+    ###TESTING
+    for zi in zis[:-1]:
+        print'\nsnapshot %i'%zi
+        hostis=elements(self.hostcat[zi][self.hmtype],
+                        lim=[M-self.Mwid/2.,M+self.Mwid/2.])
+        cenis=self.hostcat[zi]['cen.i'][hostis]
+        randis=np.arange(cenis.size)
+        print'%i halos in range.'%len(hostis)
+        if not N is None:
+            #random.seed(1)
+            randis=random.sample(randis,N)
+        cenis=cenis[randis]
+        hostis=hostis[randis]
+        print'evaluating %i'%len(cenis)
+        Nhost+=len(cenis)
+
+        pbar=ProgressBar()
+        for ceni,hosti in pbar(zip(cenis,hostis)):
+            M=self.hostcat[zi][self.hmtype][hosti]
+            if ceni==89483:
+                print'zi: %d'%zi
+                print'hosti: %d'%hosti
+            is_prog=self.subcat[zi+1]['chi.i']==ceni
+            is_prog[self.subcat[zi]['par.i'][ceni]]=False
+            ms=self.subcat[zi+1][self.smtype][is_prog]
+            ###TESTING###
+            mergis_frmeth=np.arange(len(self.subcat[zi+1][self.smtype]))\
+                          [is_prog]
+            ispos=ms>0.
+            ms=ms[ispos]
+            mergis_frmeth=mergis_frmeth[ispos]
+            if (np.sum(is_prog)>0)&(np.sum(ispos)>0):
+                mergis_frtree=np.sort(self.subcat[zi+1]['sub.merg.branch']\
+                                      [ceni])
+                mergis_frmeth_oth=np.sort(np.arange((self.subcat[zi+1]\
+                                                    [self.smtype]).size)\
+                                          [is_prog][ispos])
+                mMs_add=ms-M
+                if ceni in self.mrz_checkdic:
+                    self.mrz_checkdic[ceni]+=list(mMs_add)
+                    self.mrz_mcheckdic[ceni]+=list(ms)
+                else:
+                    self.mrz_checkdic[ceni]=list(mMs_add)
+                    self.mrz_Mcheckdic[ceni]=M
+                    self.mrz_mcheckdic[ceni]=list(ms)
+                if not np.array_equal(mergis_frtree,mergis_frmeth):
+                    print'Arrays are not equal.'
+                    print'%d: central index at z=0'%ceni
+                    print'merger list from mrz method:'
+                    print mergis_frmeth
+                    print mergis_frmeth_oth
+                    print'merger list from tree method:'
+                    print mergis_frtree
+                    #return mergis_frmeth,mergis_frtree
+            ###END TESTING###
+            mMs_add=ms-M
+            mMs+=list(mMs_add)
+    return mMs,Nhost,zbeg,zend
+
+def sv_tpm(self):
+    tstmp='{:%Y%m%d}'.format(datetime.datetime.now())
+    fname='tpm_{0}'.format(tstmp)
+    with h5py.File(fname,'w') as f:
+        f.create_dataset('tpm',data=self.subcat[1]['gal.merg.branch'])
+    return
+
+def hgram_dat_ft(self,mu_rng,Mcond,zibeg,ziend):
+    zis=np.arange(zibeg,ziend+1)
+    cat=self.subcat
+    mtype=self.gmtype
+    mp_brstr='gal.mp.branch'
+    m_brstr='gal.merg.branch'
+    M0s=cat[0][mtype]
+    inrange=(M0s<Mcond+self.Mwid/2.) & (M0s>Mcond-self.Mwid/2.)
+    hi0s=np.arange(len(M0s))[inrange]
+    Ns=[]
+    for hi0 in hi0s:
+        Ns_add=0
+        for zi in zis:
+            mpbranch=cat[zi-1][mp_brstr]
+            mergbranch=cat[zi][m_brstr]
+            if hi0 in mpbranch: 
+                chii=mpbranch[hi0]
+                if chii in mergbranch:
+                    merg_is=mergbranch[chii]
+                else:
+                    continue
+            else:
+                continue
+            ms=cat[zi][mtype][merg_is]
+            primi=cat[zi][mp_brstr][hi0]
+            M=cat[zi][mtype][primi]
+            mus=-np.abs(ms-M)
+            in_mu_rng=(mus>mu_rng[0])&(mus<mu_rng[1])
+            Ns_add+=np.sum(in_mu_rng) 
+        Ns+=[Ns_add]
+
+    bins=np.arange(-0.5,8.5,1)
+    print bins
+    count_ax=(bins[1:]+bins[:-1])/2.
+    fig=plt.figure()
+    ax=fig.add_subplot(111)
+    Ps=ax.hist(Ns,bins=bins,cumulative=-1,
+               weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
+    plt.clf()
+    print count_ax
+    return count_ax,Ps
