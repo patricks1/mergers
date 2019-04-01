@@ -1097,7 +1097,7 @@ def gal_hgram_dat_noz(rng,mMs,iprim0s_merg,iprim0s_keys):
                  (iprim0s_merg==key for key in iprim0s_keys)])
     return Ns
 
-def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=33,
+def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=34,
          through=False):
     #returns dNdz(z) or dNdt(z) around specific mu=m/M and M0 values.
     if not typ in ['gal','cengal','host','subhal','censubhal']:             
@@ -1465,14 +1465,16 @@ def sv_tpm(self):
         f.create_dataset('tpm',data=self.subcat[1]['gal.merg.branch'])
     return
 
-def hgram_dat_ft(self,mu_rng,Mcond,zibeg,ziend):
+def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
     zis=np.arange(zibeg,ziend+1)
     cat=self.subcat
     mtype=self.gmtype
     mp_brstr='gal.mp.branch'
     m_brstr='gal.merg.branch'
     M0s=cat[0][mtype]
-    inrange=(M0s<Mcond+self.Mwid/2.) & (M0s>Mcond-self.Mwid/2.)
+    if Mwid is None:
+        Mwid=self.Mwid
+    inrange=(M0s<Mcond+Mwid/2.) & (M0s>Mcond-Mwid/2.)
     hi0s=np.arange(len(M0s))[inrange]
     Ns=[]
     for hi0 in hi0s:
@@ -1496,17 +1498,28 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg,ziend):
             Ns_add+=np.sum(in_mu_rng) 
         Ns+=[Ns_add]
 
-    bins=np.arange(-0.5,8.5,1)
-    print bins
+    bins=np.arange(-0.5,9.5,1)
+    #print bins
     count_ax=(bins[1:]+bins[:-1])/2.
     fig=plt.figure()
     ax=fig.add_subplot(111)
     Ps=ax.hist(Ns,bins=bins,cumulative=-1,
                weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
-    #plt.clf()
+    ax.set_yscale('log')
+    plt.clf()
     return count_ax,Ps
 
-def write_hgram_dat_ft(count_ax,Ps,fname=None)
-    if fname is None:
-        fname='/home/users/staudt/projects/mergers/dat/simruns/simdat.h5'
-
+def quench_frac_ft(self,min_mu,zibeg=1,ziend=34):
+    #M0s=np.linspace(9.5,11.5,17)
+    M0s=np.linspace(9.7,12.,7)
+    Mwid=np.average(M0s[1:]-M0s[:-1])
+    fracs=[]
+    print'running quench data:'
+    pbar=ProgressBar()
+    for M0 in pbar(M0s): 
+        hgram_dat=hgram_dat_ft(self,[min_mu,0.],M0,Mwid=Mwid)
+        #print hgram_dat[0]
+        #pull the fraction corresponding to the "at least one" count
+        frac=hgram_dat[1][1] 
+        fracs+=[frac]
+    return M0s,fracs
