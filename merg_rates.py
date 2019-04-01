@@ -285,7 +285,7 @@ class shamedTreepmClass(TreepmClass):
             #Removing this because some mergers are not mergers into the main
             #progenitor but mergers into a galaxy that will itself merge into
             #the main progenitor
-            i0s=indices_tree(cat,zi-1,0,mergbranch.keys())
+            i1s=indices_tree(cat,zi-1,0,mergbranch.keys())
             for chii,i0 in zip(mergbranch.keys(),i0s):
                 mergbranch[i0]=mergbranch.pop(chii)
             '''
@@ -1377,7 +1377,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     
     fig=plt.figure()
     ax=fig.add_subplot(111)
-    Ns,muaxis=ax.hist(mzMs,bins=200,cumulative=-1,               
+    bins=np.linspace(-5,0,200)
+    Ns,muaxis=ax.hist(mzMs,bins=bins,cumulative=-1,               
                       weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
     plt.clf()
     muaxis=(muaxis[1:]+muaxis[:-1])/2.
@@ -1502,6 +1503,10 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg,ziend):
     ax=fig.add_subplot(111)
     Ps=ax.hist(Ns,bins=bins,cumulative=-1,
                weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
-    plt.clf()
-    print count_ax
+    #plt.clf()
     return count_ax,Ps
+
+def write_hgram_dat_ft(count_ax,Ps,fname=None)
+    if fname is None:
+        fname='/home/users/staudt/projects/mergers/dat/simruns/simdat.h5'
+
