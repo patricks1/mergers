@@ -7,9 +7,9 @@ import matplotlib as mpl
 mpl.use('Agg')                                                                     
 import matplotlib.pyplot as plt     
                                                                                    
-fname='/home/users/staudt/projects/mergers/dat/simruns/simdat_0.2.h5'                  
+fname='/home/users/staudt/projects/mergers/dat/simruns/simdat_0.4.h5'                  
    
-tpm=merg_rates.shamedTreepmClass(0.2)                                              
+tpm=merg_rates.shamedTreepmClass(0.4)                                              
 tpm.mp_tree()                                                                      
 tpm.merg_tree()                                                                    
 

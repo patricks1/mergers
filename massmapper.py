@@ -217,6 +217,30 @@ class Mergerdata:
             self.mtree[finhali][1]=self.cat[1][self.mkind][paris_one] #masses of the parents at snapshot one
             fillfinhali()
 
+    def galmassf(self,snap=0): 
+        #Get galaxy  mass number density at given snapshot
+        gmtype='m.star'
+        if self.catalog_kind=='subhalo':
+            allhalids=self.cat[snap]['halo.i'] #Get every halo ID at snap
+            mask2=allhalids!=-1
+        else:
+            mask2=self.cat[snap]['m.fof']>0.
+        allms=self.cat[snap][gmtype] #Get all masses at snap
+        mask1=allms!=0.
+        mask=mask1*mask2 #Get halo index for every halo with nonzero mass and ID not equal to -1.
+        ms=allms[mask] #Get the corresponding masses
+        num=50. #Number of bins
+        lower=np.min(ms) #Lower histogram bound
+        upper=np.max(ms) #Upper histogram bound
+        bins=np.linspace(lower,upper,num) #Mass bins in log
+        binw=np.average(bins[1:]-bins[:-1]) #Bin width in dex
+        midbins=(bins[:-1]+bins[1:])/2 
+        N,binsout,patches=plt.hist(ms,bins)
+        plt.clf()
+        n=N/(250.)**3./binw #number density i.e. number per volume per bin size
+        #n=N/(250./0.7)**3./binw #number density i.e. number per volume per bin size
+        return midbins,n
+    
     def halmassf(self,snap=0): #Get halo mass number density at given snapshot
         if self.catalog_kind=='subhalo':
             allhalids=self.cat[snap]['halo.i'] #Get every halo ID at snap
