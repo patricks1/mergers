@@ -1511,7 +1511,7 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
 
 def quench_frac_ft(self,min_mu,zibeg=1,ziend=34):
     #M0s=np.linspace(9.5,11.5,17)
-    M0s=np.linspace(9.7,12.,7)
+    M0s=np.linspace(9.7,12.,7.)
     Mwid=np.average(M0s[1:]-M0s[:-1])
     fracs=[]
     print'running quench data:'
