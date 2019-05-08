@@ -1,7 +1,6 @@
 import numpy as np
 import random
 import datetime
-import time
 import h5py
 import pandas as pd
 
@@ -23,7 +22,7 @@ import matplotlib.pyplot as plt
 class shamedTreepmClass(TreepmClass):
     def __init__(self,scat=0.,dis_mf=0.,source='rand',
                  Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
-                 seed=None):
+                 seed=None,mmin=5.):
         TreepmClass.__init__(self)
         #super(shamedTreepmClass,self).__init__()
         self.smtype='m.max'
@@ -35,6 +34,7 @@ class shamedTreepmClass(TreepmClass):
         self.dis_mf=dis_mf
         self.source=source
         self.Mwid=Mwid
+        self.mmin=mmin
         self.seed=seed
         self.subisread=False
         self.hostisread=False
@@ -617,6 +617,7 @@ class shamedTreepmClass(TreepmClass):
         ms=allms[mask] #Get the corresponding masses                            
         #self.mstest=ms
         num=50. #Number of bins                                                 
+        print len(ms)
         lower=np.min(ms) #Lower histogram bound                                 
         upper=np.max(ms) #Upper histogram bound                                 
         bins=np.linspace(lower,upper,num) #Mass bins in log                     
@@ -626,7 +627,8 @@ class shamedTreepmClass(TreepmClass):
         fig=plt.figure()
         ax=fig.add_subplot(111)
         N,binsout,patches=ax.hist(ms,bins)                                     
-        plt.clf()                                                               
+        #plt.clf()                                                               
+        plt.close()                                                               
         
         #number density i.e. number per volume per bin size:
         if paramed:
@@ -869,7 +871,7 @@ class shamedTreepmClass(TreepmClass):
 
     def run_sham(self,cat,sham_prop):
         smf_mtrx=pd.read_csv('smf.csv')  
-        print'running SHAM:'
+        print'running SHAM'
         if self.source=='rand':
             self.source={}
             pbar=ProgressBar()
@@ -884,14 +886,13 @@ class shamedTreepmClass(TreepmClass):
                             source=source,       #this one is important
                             sham_prop=sham_prop, #this one is important
                             zis=[zi],            #this one is important
-                            seed=self.seed)
+                            seed=self.seed,mmin=self.mmin)
         else:
             sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
                         source=self.source,  #this one is important
                         sham_prop=sham_prop, #this one is important
                         zis=self.shamzis,
-                        seed=self.seed)
-
+                        seed=self.seed,mmin=self.mmin)
 
 ###############################################################################
 
@@ -1308,6 +1309,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     self.checkdic={}
     self.mcheckdic={}
     self.Mcheckdic={}
+    #Check the main progenitor tree at each redshift to see if hi0 existed
+    #then. If it does, check for mergers in the merger tree.
     for hi0 in hi0s:                                                        
         M0=cat[0][mtype][hi0]                                               
         if Mtime=='0':                                                      
@@ -1318,21 +1321,63 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
             if hi0 in mpbranch:                                             
                 chii=mpbranch[hi0]                                          
                 if chii in mergbranch:                                      
+                    #If the mp exists at z and it had mergers there, 
+                    #get the indices
+                    #of the merged secondary progenitors.
                     merg_is=mergbranch[chii]                                
                 else:                                                       
+                    #If no mergers at z, move to next z.
                     continue                                                
             else:                                                           
+                #If the main progenitor doesn't exist at z, move to the next z.
+                #I would assume that if the mp doesn't exist at z, it won't
+                #exist at any of the following zs, but I'm letting it run
+                #through to be safe.
                 continue                                                    
             ms=cat[zi][mtype][merg_is]                                      
             if Mtime=='z':                                                  
-                primi=cat[zi][mp_brstr][hi0]                                
+                primi=cat[zi][mp_brstr][hi0] 
                 M=cat[zi][mtype][primi]                                     
             if forcem200 & (typ!='host'):
                 self.readhost()
+                inf_zis=cat[zi]['inf.last.zi'][merg_is]
+                inf_is=cat[zi]['inf.last.i'][merg_is]
+                inf_hostis=np.array([cat[inf_zi]['halo.i'][inf_i] 
+                                     for inf_zi,inf_i in zip(inf_zis,inf_is)])
+                ms=np.array([self.hostcat[inf_zi]['m.200c'][inf_hosti]
+                            for inf_zi,inf_hosti in zip(inf_zis,inf_hostis)])
+                if -1 in inf_zis:
+                    is_imac=inf_zis==-1
+                    inf_zis=inf_zis[~is_imac]
+                    if len(inf_zis)==0:
+                        continue
+                    inf_is=inf_is[~is_imac]
+                    inf_hostis=inf_hostis[~is_imac]
+                    ms=ms[~is_imac]
                 if Mtime=='z':
                     primi=cat[zi][mp_brstr][hi0]                                
                     hosti=self.subcat[zi]['halo.i'][primi]
-                    M=self.hostcat[zi]['m.200c'][hosti]
+                    #M=self.hostcat[zi]['m.200c'][hosti]
+
+                    #Instead of having a single mass M,
+                    #Get an array corresponding to the main progenitor mass at
+                    #the infall times for each halo that merged at z, and
+                    #call that array M:
+                    inf_mpis=np.array([indices_tree(self.hostcat,zi,
+                                                    inf_zi,hosti)
+                                       for inf_zi in inf_zis])
+                    isneg=inf_mpis<0
+                    if np.sum(isneg)>0:
+                        inf_zis=inf_zis[~isneg]
+                        if len(inf_zis)==0:
+                            continue
+                        inf_is=inf_is[~isneg]
+                        inf_hostis=inf_hostis[~isneg]
+                        ms=ms[~isneg]
+                        inf_mpis=inf_mpis[~isneg]
+                    M=np.array([self.hostcat[inf_zi]['m.200c'][inf_mpi]
+                                for inf_zi,inf_mpi 
+                                in zip(inf_zis,inf_mpis)])
                 elif Mtime=='0':
                     hosti0=self.subcat[0]['halo.i'][hi0]
                     M=self.hostcat[0]['m.200c'][hosti0]
@@ -1377,10 +1422,13 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     
     fig=plt.figure()
     ax=fig.add_subplot(111)
-    bins=np.linspace(-5,0,200)
-    Ns,muaxis=ax.hist(mzMs,bins=bins,cumulative=-1,               
-                      weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
-    plt.clf()
+    #bins=np.linspace(-5,0,200)
+    #Ns,muaxis=ax.hist(mzMs,bins=bins,cumulative=-1,               
+    #                  weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
+    Ns,muaxis=ax.hist(mzMs,bins=250,cumulative=-1,               
+                      weights=np.repeat(1./float(len(hi0s)),len(mzMs))
+                     )[:2]                    
+    plt.close()
     muaxis=(muaxis[1:]+muaxis[:-1])/2.
     return muaxis,Ns
 
