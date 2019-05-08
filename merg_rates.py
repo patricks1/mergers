@@ -1254,6 +1254,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
         raise ValueError('typ must be "gal", "cengal", "subhal", '          
                          '"censubhal", or "host"')                          
     if typ in ['gal','cengal']:                                             
+        if forcem200:
+            raise ValueError('forcem200 and galaxy analysis are incompatible')
         mtype=self.gmtype                                                   
         #set the merger-branch and main-progenitor-branch strings           
         m_brstr='gal.merg.branch'                                           
@@ -1286,19 +1288,24 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
             self.mp_tree(typ=typ)                               
         if not self.mtree_host_blt:                                         
             self.merg_tree(typ=typ)                             
-    allM0s=cat[0][mtype]                                                    
+
+    #Filter for gals/hals that meet the mass condition:
     if forcem200 & (typ!='host'):
         self.readhost()
         hosti0s=self.subcat[0]['halo.i']
         allM0s=self.hostcat[0]['m.200c'][hosti0s]
+    else:
+        allM0s=cat[0][mtype]                                                    
     inrange=(allM0s<M0+self.Mwid/2.) & (allM0s>M0-self.Mwid/2.)             
     hi0s=np.arange(len(allM0s))[inrange]
+
     if typ in ['cengal','censubhal']:                                       
         iscen=cat[0]['ilk'][hi0s]==1                                        
         hi0s=hi0s[iscen]                                                    
         #print'%d halos match the M0 condition and are centrals'%hi0s.size
     
     if through:                                                             
+        #Filter for gals/hals that exist for all zi up to ziend
         hi0s=through_f(cat,hi0s,mtype,ziend)
 
     allzis=np.arange(zibeg,ziend+1)                                   
@@ -1312,9 +1319,6 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     #Check the main progenitor tree at each redshift to see if hi0 existed
     #then. If it does, check for mergers in the merger tree.
     for hi0 in hi0s:                                                        
-        M0=cat[0][mtype][hi0]                                               
-        if Mtime=='0':                                                      
-            M=M0                                                            
         for zi in allzis[1:]:                                               
             mergbranch=cat[zi][m_brstr]                                     
             mpbranch=cat[zi-1][mp_brstr]                                    
@@ -1334,10 +1338,7 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                 #exist at any of the following zs, but I'm letting it run
                 #through to be safe.
                 continue                                                    
-            ms=cat[zi][mtype][merg_is]                                      
-            if Mtime=='z':                                                  
-                primi=cat[zi][mp_brstr][hi0] 
-                M=cat[zi][mtype][primi]                                     
+            #If we are forcing masses to be 
             if forcem200 & (typ!='host'):
                 self.readhost()
                 inf_zis=cat[zi]['inf.last.zi'][merg_is]
@@ -1347,6 +1348,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                 ms=np.array([self.hostcat[inf_zi]['m.200c'][inf_hosti]
                             for inf_zi,inf_hosti in zip(inf_zis,inf_hostis)])
                 if -1 in inf_zis:
+                    #In some cases, subhalos form inside a host halo and don't
+                    #have an infall time, per se. Get rid of those:
                     is_imac=inf_zis==-1
                     inf_zis=inf_zis[~is_imac]
                     if len(inf_zis)==0:
@@ -1362,12 +1365,16 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                     #Instead of having a single mass M,
                     #Get an array corresponding to the main progenitor mass at
                     #the infall times for each halo that merged at z, and
-                    #call that array M:
+                    #name that array M:
                     inf_mpis=np.array([indices_tree(self.hostcat,zi,
                                                     inf_zi,hosti)
                                        for inf_zi in inf_zis])
                     isneg=inf_mpis<0
                     if np.sum(isneg)>0:
+                        #In some cases, for some reason likely beyond human
+                        #comprehension, subhalos are not sitting in a host at
+                        #the time of infall but
+                        #are not considered hosts themselves. Get rid of those:
                         inf_zis=inf_zis[~isneg]
                         if len(inf_zis)==0:
                             continue
@@ -1381,6 +1388,14 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                 elif Mtime=='0':
                     hosti0=self.subcat[0]['halo.i'][hi0]
                     M=self.hostcat[0]['m.200c'][hosti0]
+            else:
+                ms=cat[zi][mtype][merg_is]                                      
+                if Mtime=='z':                                                  
+                    primi=cat[zi][mp_brstr][hi0] 
+                    M=cat[zi][mtype][primi]                                     
+                elif Mtime=='0':                                                      
+                    M0=cat[0][mtype][hi0]                                               
+                    M=M0                                                            
             mzMs_add=list(ms-M)                                             
             mzMs+=mzMs_add                                                  
             ###THIS IS FOR TESTING. WE CAN REMOVE IT LATER.###
@@ -1422,12 +1437,12 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     
     fig=plt.figure()
     ax=fig.add_subplot(111)
-    #bins=np.linspace(-5,0,200)
-    #Ns,muaxis=ax.hist(mzMs,bins=bins,cumulative=-1,               
-    #                  weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
-    Ns,muaxis=ax.hist(mzMs,bins=250,cumulative=-1,               
-                      weights=np.repeat(1./float(len(hi0s)),len(mzMs))
-                     )[:2]                    
+    bins=np.linspace(-5,0,200)
+    Ns,muaxis=ax.hist(mzMs,bins=bins,cumulative=-1,               
+                      weights=np.repeat(1./float(len(hi0s)),len(mzMs)))[:2]                    
+    #Ns,muaxis=ax.hist(mzMs,bins=250,cumulative=-1,               
+    #                  weights=np.repeat(1./float(len(hi0s)),len(mzMs))
+    #                 )[:2]                    
     plt.close()
     muaxis=(muaxis[1:]+muaxis[:-1])/2.
     return muaxis,Ns
