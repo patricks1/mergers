@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 class shamedTreepmClass(TreepmClass):
     def __init__(self,scat=0.,dis_mf=0.,source='rand',
                  Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
-                 seed=None,mmin=5.):
+                 seed=None,mmin=5.,conscat=True):
         TreepmClass.__init__(self)
         #super(shamedTreepmClass,self).__init__()
         self.smtype='m.max'
@@ -35,6 +35,7 @@ class shamedTreepmClass(TreepmClass):
         self.source=source
         self.Mwid=Mwid
         self.mmin=mmin
+        self.conscat=conscat
         self.seed=seed
         self.subisread=False
         self.hostisread=False
@@ -617,7 +618,7 @@ class shamedTreepmClass(TreepmClass):
         ms=allms[mask] #Get the corresponding masses                            
         #self.mstest=ms
         num=50. #Number of bins                                                 
-        print len(ms)
+        #print len(ms)
         lower=np.min(ms) #Lower histogram bound                                 
         upper=np.max(ms) #Upper histogram bound                                 
         bins=np.linspace(lower,upper,num) #Mass bins in log                     
@@ -883,16 +884,16 @@ class shamedTreepmClass(TreepmClass):
                 source=random.choice(choices) 
                 self.source[zi]=source
                 sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
-                            source=source,       #this one is important
-                            sham_prop=sham_prop, #this one is important
-                            zis=[zi],            #this one is important
-                            seed=self.seed,mmin=self.mmin)
+                            source=source,       
+                            sham_prop=sham_prop, 
+                            zis=[zi],            
+                            seed=self.seed,mmin=self.mmin,const=self.conscat)
         else:
             sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
-                        source=self.source,  #this one is important
-                        sham_prop=sham_prop, #this one is important
+                        source=self.source,  
+                        sham_prop=sham_prop, 
                         zis=self.shamzis,
-                        seed=self.seed,mmin=self.mmin)
+                        seed=self.seed,mmin=self.mmin,const=self.conscat)
 
 ###############################################################################
 
