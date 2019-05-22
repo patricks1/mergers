@@ -9,9 +9,9 @@ The .py scripts do the heavy lifting, namely ''merg_rates.py''. The Jupyter note
 
 ## Most Important Scripts
 ### merg_rates.py
-This is the heart of the project. It imports ''subhal_io_hack.py'', which it basically uses to generate an instance of the treepm simulation, and imports ''my_sham_hack.py'', which it uses to SHAMgalaxies to halos in the simulation. The script contains most of the methods I use to analyze galaxy merger statistics. Some of those methods are part of the shamedTreepmClass. Some are written as functions outside of the class.
+This is the heart of the project. It imports ''subhal_io_hack.py'', which it basically uses to generate an instance of the treepm simulation, and imports ''my_sham_hack.py'', which it uses to SHAM galaxies to halos in the simulation. The script contains most of the methods I use to analyze galaxy merger statistics. Some of those methods are part of the shamedTreepmClass. Some are written as functions outside of the class.
 
-Within this script, the most important methods are ''merg_tree(...)'' and ''mp_tree(...)''. ''merg_tree(...)'' generates merger trees for each galaxy. ''mp_tree(...)'' generates a dictionary for each galaxy, specifying what its index (i.e. location in the simulation data) was at each redshift, re 
+Within this script, the most important methods are ''merg_tree(...)'' and ''mp_tree(...)''. ''merg_tree(...)'' generates merger trees for each galaxy. ''mp_tree(...)'' generates a dictionary for each galaxy, specifying what its index (i.e. location in the simulation data) was at each redshift.
 
 ### simdatbuilder.py
 This is the script that I ultimately import into an ipython terminal and loop through any number of times to generate statistics for multiple runs of the simulation.
