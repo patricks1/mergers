@@ -17,10 +17,13 @@ Within this script, the most important methods are ''merg_tree(...)'' and ''mp_t
 This is the script that I ultimately import into an ipython terminal and loop through any number of times to generate statistics for multiple runs of the simulation.
 
 ### my_sham_hack.py
-This is my modified version of ChangHoon Hahn's ''sham_hack.py'', which he built from Dr. Wetzel's original ''sham.py''. I implemented a few error workarounds, added more stellar mass functions, and implemented functionality that keeps each galaxy's deviation from the mean SHMR constant over the duration of the simulation.
+This is my modified version of ChangHoon Hahn's ''sham_hack.py'', which he built from Dr. Wetzel's original ''sham.py''. My modifications include the following:
+- Implemented functionality that keeps each galaxy's deviation from the mean SHMR constant over the duration of the simulation.
+- Added more stellar mass functions
+- Implemented a few error workarounds
 
 ### subhalo_io_hack.py
-The TreepmClass here basically generates an instance of the treepm simulation. The instance contains catalogs, broken up my redshift index, containing all the halo information for each redshift. Andrew Wetzel wrote the original subhalo_io and sham scripts. ''subhal_io_hack.py'' is my slightly modified version of that original. 
+The TreepmClass here basically generates an instance of the treepm simulation. The instance contains catalogs, broken up my redshift index, containing all the halo information for each redshift. Andrew Wetzel wrote the original ''subhalo_io.py''. ''subhal_io_hack.py'' is my slightly modified version. 
 
 ## Most Important Jupyter Notebooks
 Be warned, the notebooks are somewhat messy. They are my ~on-the-fly implementations of the .py scripts. I use(d) the notebooks to generate plots for papers, presentations, and meetings.
