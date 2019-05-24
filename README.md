@@ -29,7 +29,7 @@ The TreepmClass here basically generates an instance of the treepm simulation. T
 Be warned, the notebooks are somewhat messy. They are my ~on-the-fly implementations of the .py scripts. I use(d) the notebooks to generate plots for papers, presentations, and meetings.
 
 ### presentation_plots.ipynb
-This notebook generates the main plots I use for my uncertainties papers and presentation. The repository does not contain the data files from which this notebook pulls. However, you can see the processes use to build those files by inspecting simdatbuilder.py.
+This notebook generates the main plots I use for my uncertainties papers and presentation. The repository does not contain the data files from which this notebook pulls. However, you can see the processes that build those files by inspecting simdatbuilder.py.
 
 ### testing_hash_method.ipynb
 At one point, identifying mergers and calculating statistics took ~12 hours for each run of the simulation. On Kilian Walsh's advice, I rewrote the heart of the process in ''merg_rates.py'' to generate merger "hash tables" (i.e. dictionaries) that have essentially zero lookup time. This sped up each run to ~6 minutes! This notebook tests merger statistics using that hash method to make sure it works. It does!  
