@@ -1319,7 +1319,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     self.Mcheckdic={}
     #Check the main progenitor tree at each redshift to see if hi0 existed
     #then. If it does, check for mergers in the merger tree.
-    for hi0 in hi0s:                                                        
+    pbar=ProgressBar()
+    for hi0 in pbar(hi0s):                                                        
         for zi in allzis[1:]:                                               
             mergbranch=cat[zi][m_brstr]                                     
             mpbranch=cat[zi-1][mp_brstr]                                    
