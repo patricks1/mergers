@@ -318,7 +318,7 @@ class shamedTreepmClass(TreepmClass):
         zbeg=cat.snap[zibeg][1]
         zend=cat.snap[ziend][1]
 
-        hi0s=np.arange(len(cat[0][mtype]))
+        hi0s=np.arange(len(cat[0]['m.max']))
 
         #Evaluate zis in ascending order, tracing back z=0 main progenitors so
         #we have a list of main progenitors at every snapshot.
@@ -871,9 +871,18 @@ class shamedTreepmClass(TreepmClass):
         self.readsub()
 
     def run_sham(self,cat,sham_prop):
-        smf_mtrx=pd.read_csv('smf.csv')  
+        smf_mtrx=pd.read_csv('./data/smf.csv')  
         print'running SHAM'
-        if self.source=='rand':
+        if isinstance(self.source,(list,np.ndarray,pd.core.series.Series)):
+            pbar=ProgressBar()
+            for zi in pbar(self.shamzis):
+                source=self.source[zi]
+                sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
+                            source=source,       
+                            sham_prop=sham_prop, 
+                            zis=[zi],            
+                            seed=self.seed,mmin=self.mmin,const=self.conscat)
+        elif self.source=='rand':
             self.source={}
             pbar=ProgressBar()
             for zi in pbar(self.shamzis):
@@ -1100,7 +1109,7 @@ def gal_hgram_dat_noz(rng,mMs,iprim0s_merg,iprim0s_keys):
     return Ns
 
 def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=34,
-         through=False):
+         through=False,zi_Mcond=0):
     #returns dNdz(z) or dNdt(z) around specific mu=m/M and M0 values.
     if not typ in ['gal','cengal','host','subhal','censubhal']:             
         raise ValueError('typ must be "gal", "cengal", "subhal", '          
@@ -1140,17 +1149,27 @@ def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=34,
             self.merg_tree(typ='host')                  
     
     zis=np.arange(zibeg,ziend+1)   
-    allM0s=cat[0][mtype]
+    allM0s=cat[zi_Mcond][mtype]
     inrange=(allM0s<Mcond+self.Mwid/2.) & (allM0s>Mcond-self.Mwid/2.)
     if typ in ['cengal','subhal']:
-        iscen=cat[0]['ilk']==1
+        iscen=cat[zi_Mcond]['ilk']==1
         hi0s=np.arange(len(allM0s))[inrange & iscen]
     else:
         hi0s=np.arange(len(allM0s))[inrange]    
     if through:
         hi0s=through_f(cat,hi0s,mtype,ziend)
-    M0s=cat[0][mtype][hi0s] #Do I need this?
+    #M0s=cat[0][mtype][hi0s] #Do I need this?
     
+    if zi_Mcond!=0:
+        #In order to implement the ability to set an M condition at a zi other
+        #than 0 while still using the mp_tree indexed to 0, the code finds hi0s
+        #based on the conditions at zi_Mcond and then uses indices_tree to find 
+        #out what the indices are at zi=0.
+        #
+        #I might run into an issue where a halo/gal exists at zi_Mcond but not
+        #at zi=0. I'll come back and fix this later if that issue arrises.
+        hi0s=indices_tree(cat,zi_Mcond,0,hi0s)
+
     Nprim0=len(hi0s)
     dNdxs=[]
     zs=[cat[zi].snap['z'] for zi in zis]
@@ -1571,20 +1590,24 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
     Ps=ax.hist(Ns,bins=bins,cumulative=-1,
                weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
     ax.set_yscale('log')
-    plt.clf()
+    plt.close()
     return count_ax,Ps
 
-def quench_frac_ft(self,min_mu,zibeg=1,ziend=34):
+def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
     #M0s=np.linspace(9.5,11.5,17)
-    M0s=np.linspace(9.7,12.,7.)
     Mwid=np.average(M0s[1:]-M0s[:-1])
     fracs=[]
     print'running quench data:'
     pbar=ProgressBar()
     for M0 in pbar(M0s): 
-        hgram_dat=hgram_dat_ft(self,[min_mu,0.],M0,Mwid=Mwid)
+        hgram_dat=hgram_dat_ft(self,[min_mu,0.],Mcond=M0,
+                               zibeg=zibeg,ziend=ziend,Mwid=Mwid)
         #print hgram_dat[0]
         #pull the fraction corresponding to the "at least one" count
         frac=hgram_dat[1][1] 
         fracs+=[frac]
     return M0s,fracs
+
+def bld_smf_compo(main):
+    smf_ar=pd.read_csv('./data/smf_composites.csv')[main]
+    return smf_ar
