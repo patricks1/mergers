@@ -59,11 +59,7 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
             MF = LFClass(source, scat, subz.Cosmo['hubble'])
     else:
         raise ValueError('not recognize m_kind = %s' % m_kind)
-    #print'running SHAM:'
-    #pbar=ProgressBar()
     for ei,zi in enumerate(zis):
-    #for ei,zi in enumerate(pbar(zis)):
-        #print'zi: %i'%zi
         subz = sub[zi]
         subz['scat']=np.repeat(np.nan,subz[sham_prop].size)
         subz['m.max.test']=np.repeat(np.nan,subz[sham_prop].size)
@@ -82,53 +78,31 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
         #maximum number of objects in volume to assign given SMF/LF threshold
         #(numden returns cumulative number density given a mass.)
         num_max = int(round(MF.numden(MF.mmin) * vol))
-        #print'num_max: %i'%num_max
         sis = ut.array.elements(subz[sham_prop], [0.001, Inf])
         if dis_mf:
             sis = ut.array.elements(subz['m.frac.min'], [dis_mf, Inf], sis)
         #Get indices that will sort subz by mass in descending order. Then cut
         #it off when it reaches a minimum mass:
-        #print'num_max: %d'%num_max
         if len(sis)<num_max:
-            #print('len(sis)<num_max @ zi={0:d}'.format(zi))
             num_max=len(sis)
-        '''
-        if len(sis)<num_max:
-            print'ignoring num_max.'
-            siis_sort = np.argsort(subz[sham_prop][sis]).\
-                        astype(sis.dtype)[::-1]
-        else:
-            siis_sort = np.argsort(subz[sham_prop][sis]).\
-                        astype(sis.dtype)[::-1][:num_max]
-        '''
         siis_sort = np.argsort(subz[sham_prop][sis]).\
                     astype(sis.dtype)[::-1][:num_max]
         num_sums = ut.array.arange_length(num_max) + 1
         if scat:
-            #if m_kind == 'm.star': 
-            #    scats = np.random.normal(np.zeros(len(sis)), MF.scat).\
-            #            astype(np.float32)
-            #elif m_kind == 'mag.r': 
-            #    scats = np.random.normal(np.zeros(len(sis)), 2.5 * MF.scat).\
-            #            astype(np.float32)
             if m_kind == 'm.star': 
                 scats = np.random.normal(np.zeros(num_max), MF.scat).astype(np.float32)
                 mmax_test=subz['m.max'][sis[siis_sort]]
             elif m_kind == 'mag.r': 
                 scats = np.random.normal(np.zeros(num_max), 2.5 * MF.scat).astype(np.float32)
             if const:
-                #print('zi: {2:d}\n'
-                #      'num_max:  {0:d}\n'
-                #      'len(sis): {1:d}\n'.format(num_max,len(sis),zi))
-                if ei>0:
+                if zi>0:
                     #Get indices corresponding to the previous z so we can see
                     #whether the program has already assigned a scatter to that
                     #galaxy line:
-                    tree_is=ut.catalog.indices_tree(sub,zi,zis[ei-1],
+                    tree_is=ut.catalog.indices_tree(sub,zi,zi-1,
                                                     sis[siis_sort])
                     hasfam=tree_is>=0
-                    famscat=sub[zis[ei-1]]['scat'][tree_is[hasfam]]
-                    #fam_isnan=np.isnan(famscat)
+                    famscat=sub[zi-1]['scat'][tree_is[hasfam]]
                     nanfam_is=np.where(np.isnan(famscat))
                     #For each halo that has family, if its family's scatter
                     #is nan, change its hasfam status to false:
@@ -136,14 +110,12 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
 
                     #Where a galaxy line has already been assined a scatter,
                     #set the corresponding scat element to that value.
-                    scats[hasfam]=sub[zis[ei-1]]['scat'][tree_is[hasfam]]
-                    mmax_test[hasfam]=sub[zis[ei-1]]['m.max'][tree_is[hasfam]]
+                    scats[hasfam]=sub[zi-1]['scat'][tree_is[hasfam]]
+                    mmax_test[hasfam]=sub[zi-1]['m.max'][tree_is[hasfam]]
                 subz['scat'][sis[siis_sort]]=scats
-                subz['m.max.test'][sis[siis_sort]]=mmax_test
             #m_scat returns descattered mass given cumulative number density. 
             #Add scatter to this to get final mass:
             subz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats
-            #subz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) 
         else:
             subz[m_kind][sis[siis_sort]] = MF.m(num_sums / vol)
 
@@ -172,14 +144,33 @@ class SMFClass:
             self.slopes = np.array([-1.155])
             self.initialize_redshift(redshift)
         elif source == 'muzzin':
-            self.redshifts=np.array([0.1,0.35,0.75,1.25,1.75,2.25,2.75,3.5,4.])
-            self.mchars=np.array([11.06,11.06,11.,10.87,10.81,10.81,11.03,11.49,11.49])
-            self.amplitudes=1.e-4*np.array([19.02,19.02,16.25,13.91,10.13,
-                                             4.79,1.93,0.09,0.09])
-            self.slopes=np.array([-1.2,-1.2,-1.17,-1.02,-0.86,-0.55,-1.01,-1.45,-1.45])
+            '''
+            Muzzin et al. (2013). Kroupa IMF.
+            '''
+            self.redshifts=np.array([0.2,0.35,0.75,1.25,1.75,2.25,2.75,3.5,4.])
+            self.mchars=np.array([11.22,11.22,11.,10.87,10.81,10.81,11.03,11.49,11.49])
+            self.amplitudes=1.e-4*np.array([12.16,12.16,16.25,13.91,10.13,4.79,1.93,0.09,0.09])
+            self.slopes=np.array([-1.29,-1.29,-1.17,-1.02,-0.86,-0.55,-1.01,-1.45,-1.45])
+            self.make_splines()
+            self.initialize_redshift(redshift)
+        elif source == 'muzzin-sameslope':
+            self.redshifts=np.array([0.2,0.35,0.75,1.25,1.75,2.25,2.75,3.5,4.])
+            self.mchars=np.array([11.06,11.06,11.04,10.99,10.96,11.,11.09,11.4,11.4])
+            self.amplitudes=1.e-4*np.array([19.02,19.02,14.48,9.3,6.33,2.94,1.66,0.13,0.13])
+            self.slopes=np.array([-1.2,-1.2,-1.2,-1.2,-1.2,-1.2,-1.2,-1.2,-1.2])
+            self.make_splines()
+            self.initialize_redshift(redshift)
+        elif source == 'muzzin-bestslope':
+            self.redshifts=np.array([0.2,0.35,0.75,1.25,1.75,2.25,2.75,3.5,4.])
+            self.mchars=np.array([11.06,11.06,11.04,10.99,10.96,11.,11.09,11.49,11.49])
+            self.amplitudes=1.e-4*np.array([19.02,19.02,14.48,9.3,6.33,2.94,1.66,0.09,0.09])
+            self.slopes=np.array([-1.2,-1.2,-1.2,-1.2,-1.2,-1.2,-1.2,-1.45,-1.45])
             self.make_splines()
             self.initialize_redshift(redshift)
         elif source=='duncan':
+            '''
+            Duncan et al. (2014). Chabrier IMF.
+            '''
             self.redshifts=np.array([4.,5.,6.,7.])
             self.mchars=np.array([10.51,10.68,10.87,10.51])
             self.amplitudes=1.e-4*np.array([1.89,1.24,0.14,0.36])
@@ -187,16 +178,25 @@ class SMFClass:
             self.make_splines()
             self.initialize_redshift(redshift)
         elif source=='caputi':
+            '''
+            Caputi et al. (2011). Converting their Salpeter to Chabrier IMF.
+            '''
             self.redshifts=np.array([3.,3.25,3.875,4.625,5.])
-            self.mchars=np.log10(np.array([2.82,2.82,2.34,1.15,1.15])*1.e11)
-            self.amplitudes=1.e-5*np.array([3.95,3.95,1.15,1.21,1.21])
+            #-np.log10(1.6) converts the IMF
+            self.mchars=np.log10(np.array([2.82,2.82,2.34,1.15,1.15])*1.e11)-np.log10(1.6)
+            #/np.log(10) because the Caputi function doesn't have *np.log(10)
+            self.amplitudes=1.e-5*np.array([3.95,3.95,1.15,1.21,1.21])/np.log(10)
             self.slopes=-np.array([1.86,1.86,2.07,1.85,1.85])
             self.make_splines()
             self.initialize_redshift(redshift)
         elif source=='lee':
+            '''
+            Lee et al. (2012). Chabrier IMF.
+            '''
+            h_them=0.72
             self.redshifts=np.array([4.,5.])
-            self.mchars=np.array([10.35,10.45])
-            self.amplitudes=1.e-4*np.array([3.9,1.1])
+            self.mchars=np.array([10.35,10.45])+2.*np.log10(h_them/hubble)
+            self.amplitudes=1.e-4*np.array([3.9,1.1])*(hubble/h_them)**3.
             self.slopes=np.array([-1.4,-1.36])
             self.make_splines()
             self.initialize_redshift(redshift)
@@ -217,11 +217,21 @@ class SMFClass:
             h_them = 0.7    # their assumed hubble constant
             self.redshifts = np.array([0.1])
             # covert to Chabrier
-            self.mchars = (np.array([10.525]) + 2 * log10(h_them / hubble) + log10(1 / 1.6 / 0.7))
-            self.amplitudes = np.array([0.00426]) * (hubble / h_them) ** 3
-            self.amplitudes2 = np.array([0.00058]) * (hubble / h_them) ** 3
+            self.mchars = (np.array([10.525]) + 2. * log10(h_them / hubble) + log10(1. / 1.6 / 0.7))
+            self.amplitudes = np.array([0.00426]) * (hubble / h_them) ** 3.
+            self.amplitudes2 = np.array([0.00058]) * (hubble / h_them) ** 3.
             self.slopes = np.array([-0.46])
             self.slopes2 = np.array([-1.58])
+            self.initialize_redshift(redshift)
+        elif source == 'cole':
+            '''
+            z = 0.1 from Cole et al 2001 (2dF), converting their Salpeter to Kroupa.
+            '''
+            self.redshifts = np.array([0.1])
+            self.mchars = np.array([10.65]) - 2. * log10(hubble)
+            # converted to {Mpc ^ -3 dex ^ -1}
+            self.amplitudes = np.array([90.00]) * 1e-4 * hubble ** 3.
+            self.slopes = np.array([-1.18])
             self.initialize_redshift(redshift)
         elif source == 'cole-march':
             '''
@@ -230,9 +240,9 @@ class SMFClass:
             *** In order to use out to z ~ 4, made evolution flat from z = 3.5 to 4.
             '''
             self.redshifts = np.array([0.1, 1.6, 2.5, 3.56, 4.03])
-            self.mchars = np.array([10.65, 10.60, 10.65, 11.07, 11.07]) - 2 * log10(hubble)
+            self.mchars = np.array([10.65, 10.60, 10.65, 11.07, 11.07]) - 2. * log10(hubble)
             # converted to {Mpc ^ -3 dex ^ -1}
-            self.amplitudes = np.array([90.00, 29.65, 11.52, 1.55, 1.55]) * 1e-4 * hubble ** 3
+            self.amplitudes = np.array([90.00, 29.65, 11.52, 1.55, 1.55]) * 1e-4 * hubble ** 3.
             self.slopes = np.array([-1.18, -1.00, -1.01, -1.39, -1.39])
             self.make_splines()
             self.initialize_redshift(redshift)
@@ -245,6 +255,17 @@ class SMFClass:
             self.amplitudes = (np.array([0.0083, 0.002965, 0.00115, 0.000155, 0.000155]) *
                                hubble ** 3)
             self.slopes = np.array([-1.155, -1.00, -1.01, -1.39, -1.39])
+            self.make_splines()
+            self.initialize_redshift(redshift)
+        elif source == 'march':
+            '''
+            Marchesini et al 2009.
+            '''
+            self.redshifts = np.array([1.3, 1.65, 2.5, 3.56, 4.03])
+            self.mchars = np.array([10.6, 10.60, 10.65, 11.07, 11.07]) - 2 * log10(hubble)
+            self.amplitudes = (np.array([0.002965, 0.002965, 0.00115, 0.000155, 0.000155]) *
+                               hubble ** 3)
+            self.slopes = np.array([-1., -1.00, -1.01, -1.39, -1.39])
             self.make_splines()
             self.initialize_redshift(redshift)
         elif source == 'li-march-extreme': 
@@ -275,7 +296,8 @@ class SMFClass:
             z = 0.1 from Cole et al 2001.
             '''
             h_them = 0.7    # their assumed hubble constant
-            self.redshifts = np.array([0.1, 4.0])    # store redshift range of validity
+            # store redshift range of validity
+            self.redshifts = np.array([0.4, 4.0])    
             self.amplitude0 = 0.0035 * (hubble / h_them) ** 3    # to {Mpc ^ -3 / log10(M/M_sun)}
             self.amplitude1 = -2.2
             self.slope0 = -1.18
@@ -285,6 +307,29 @@ class SMFClass:
             self.mchar2 = -0.07    # log10(M/M_sun)
             # convert to my hubble & Chabrier IMF
             self.mchar0 += 2 * log10(h_them / hubble) - log10(1.6)
+            self.initialize_redshift(redshift)
+        elif source == 'drory':
+            '''
+            Drory et al 2009. 0.3 < z < 1.0 from COSMOS.
+            Chabrier IMF limited to 0.1 - 100 M_sun.
+            Complete to (8.0, 8.6, 8.9, 9.1) M_sun/h^2 at z = (0.3, 0.5, 0.7, 0.9).
+            See Ilbert et al 2010 for alternate COSMOS version.
+            '''
+            h_them = 0.72    # their assumed hubble constant
+            self.redshifts = np.array([0.2,0.3, 0.5, 0.7, 0.9,1.])
+            self.mchars = np.array([10.9,10.90, 10.91, 10.95, 10.92,10.92]) + 2 * log10(h_them / hubble)
+            # convert to [Mpc ^ -3 dex^-1]
+            self.amplitudes = (np.array([0.00289,0.00289,0.00174,\
+                                         0.00216,0.00294,0.00294])\
+                               *(hubble / h_them) ** 3)
+            self.slopes = np.array([-1.06,-1.06,-1.05,-0.93,-0.91,-0.91])
+            self.mchars2 = np.array([9.63,9.63, 9.70,9.75, 9.85,9.85])\
+                           + 2. * log10(h_them / hubble)
+            self.amplitudes2 = (np.array([0.00180,0.00180,0.00143,\
+                                          0.00289,0.00212,0.00212])\
+                                *(hubble / h_them) ** 3)
+            self.slopes2 = np.array([-1.73,-1.73, -1.76, -1.65, -1.65,-1.65])
+            self.make_splines()
             self.initialize_redshift(redshift)
         elif source == 'li-drory-march':
             '''
@@ -301,7 +346,7 @@ class SMFClass:
             self.amplitudes = (np.array([0.00289, 0.00174, 0.00216, 0.00294]) *
                                (hubble / h_them) ** 3)
             self.slopes = np.array([-1.06, -1.05, -0.93, -0.91])
-            self.mchars2 = np.array([9.63, 9.70, 9.75, 9.85]) + 2 * log10(h_them / hubble)
+            self.mchars2 = np.array([9.63, 9.70, 9.75, 9.85]) + 2. * log10(h_them / hubble)
             self.amplitudes2 = (np.array([0.00180, 0.00143, 0.00289, 0.00212]) *
                                 (hubble / h_them) ** 3)
             self.slopes2 = np.array([-1.73, -1.76, -1.65, -1.65])
@@ -376,7 +421,8 @@ class SMFClass:
         self.mchar_z_spl = interpolate.splrep(self.redshifts, self.mchars, k=1)
         self.slope_z_spl = interpolate.splrep(self.redshifts, self.slopes, k=1)
         self.amplitude_z_spl = interpolate.splrep(self.redshifts, self.amplitudes, k=1)
-        if self.source in ('li-drory-march', 'li-drory-march_sameslope'):
+        if self.source in ('drory','li-drory-march',
+                           'li-drory-march_sameslope'):
             self.mchar2_z_spl = interpolate.splrep(self.redshifts, self.mchars2, k=1)
             self.slope2_z_spl = interpolate.splrep(self.redshifts, self.slopes2, k=1)
             self.amplitude2_z_spl = interpolate.splrep(self.redshifts, self.amplitudes2, k=1)
@@ -391,8 +437,9 @@ class SMFClass:
         '''
         if redshift < self.redshifts.min() - 1e-5 or redshift > self.redshifts.max() + 1e-5:
             raise ValueError('z = %.2f out of range for %s' % (redshift, self.source))
+            #raise Z_RangeError('z = %.2f out of range for %s' % (redshift, self.source))
         self.redshift = redshift
-        if self.source in ('li'):
+        if self.source in ('li','cole'):
             self.m_char = self.mchars[0]
             self.amplitude = self.amplitudes[0] * np.log(10)
             self.slope = self.slopes[0] + 1
@@ -403,8 +450,11 @@ class SMFClass:
             self.amplitude2 = self.amplitudes2[0] * np.log(10)
             self.slope = self.slopes[0] + 1
             self.slope2 = self.slopes2[0] + 1
-        elif self.source in ('cole-march', 'li-march', 'perez', 'constant-li',
-                             'li-march-extreme','muzzin','duncan','caputi',
+        elif self.source in ('cole-march','li-march', 'march',
+                             'perez', 'constant-li',
+                             'li-march-extreme','muzzin',
+                             'muzzin-sameslope','muzzin-bestslope','duncan',
+                             'caputi',
                              'lee','santini'):
             self.m_char = interpolate.splev(redshift, self.mchar_z_spl)
             self.amplitude = interpolate.splev(redshift, self.amplitude_z_spl) * np.log(10)
@@ -413,7 +463,8 @@ class SMFClass:
             self.m_char = self.mchar0 + self.mchar1 * redshift + self.mchar2 * redshift ** 2
             self.amplitude = (self.amplitude0 * (1 + redshift) ** self.amplitude1) * np.log(10)
             self.slope = (self.slope0 + self.slope1 * redshift) + 1
-        elif self.source in ('li-drory-march', 'li-drory-march_sameslope'):
+        elif self.source in ('drory','li-drory-march',
+                             'li-drory-march_sameslope'):
             self.m_char = interpolate.splev(redshift, self.mchar_z_spl)
             self.amplitude = interpolate.splev(redshift, self.amplitude_z_spl) * np.log(10)
             self.slope = interpolate.splev(redshift, self.slope_z_spl) + 1
@@ -644,6 +695,7 @@ class LFClass(SMFClass):
         '''
         if redshift < self.redshifts.min() - 1e-5:# or redshift > self.redshifts.max() + 1e-5:
             raise ValueError('z = %.2f out of range for %s' % (redshift, self.source))
+            #raise Z_RangeError('z = %.2f out of range for %s' % (redshift, self.source))
         self.redshift = redshift
         self.m_char = interpolate.splev(redshift, self.mchar_z_spl, ext=0)
         self.amplitude = interpolate.splev(redshift, self.amplitude_z_spl, ext=0) 
@@ -839,3 +891,8 @@ def plot_source_compare(sources=['li-march', 'perez'], redshifts=0.1, m_lim=[8.0
     cosmos = cosmos.transpose()
     cosmos[1] = log10(cosmos[1] * 0.72 ** -3)
     # Plot.draw('pp', cosmos[0], cosmos[1], pt=123)
+
+class Z_RangeError(ValueError):
+    #Raised when the user tries to evaluate an SMF outside its redshift range
+    def __init__(self,message):
+        ValueError.__init__(self,message) 
