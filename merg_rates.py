@@ -871,7 +871,7 @@ class shamedTreepmClass(TreepmClass):
         self.readsub()
 
     def run_sham(self,cat,sham_prop):
-        smf_mtrx=pd.read_csv('./data/smf.csv')  
+        smf_mtrx=pd.read_csv('/home/users/staudt/projects/mergers/data/smf.csv')  
         print'running SHAM'
         if isinstance(self.source,(list,np.ndarray,pd.core.series.Series)):
             pbar=ProgressBar()
@@ -1393,8 +1393,8 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                     isneg=inf_mpis<0
                     if np.sum(isneg)>0:
                         #In some cases, for some reason likely beyond human
-                        #comprehension, subhalos are not sitting in a host at
-                        #the time of infall but
+                        #comprehensibility, subhalos are not sitting in a host 
+                        #at the time of infall but
                         #are not considered hosts themselves. Get rid of those:
                         inf_zis=inf_zis[~isneg]
                         if len(inf_zis)==0:
@@ -1560,10 +1560,11 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
         Mwid=self.Mwid
     inrange=(M0s<Mcond+Mwid/2.) & (M0s>Mcond-Mwid/2.)
     hi0s=np.arange(len(M0s))[inrange]
-    Ns=[]
+    Ns=[] #initialize the number of mergers in each M0 bin
     for hi0 in hi0s:
-        Ns_add=0
+        Ns_add=0 #starting off the number of mergers in the bin at 0
         for zi in zis:
+            #2 parents will share a child, so get the mp branch for zi-1
             mpbranch=cat[zi-1][mp_brstr]
             mergbranch=cat[zi][m_brstr]
             if hi0 in mpbranch: 
@@ -1583,19 +1584,21 @@ def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
         Ns+=[Ns_add]
 
     bins=np.arange(-0.5,9.5,1)
-    #print bins
-    count_ax=(bins[1:]+bins[:-1])/2.
+    count_ax=(bins[1:]+bins[:-1])/2. #x-axis of merger counts
     fig=plt.figure()
     ax=fig.add_subplot(111)
     Ps=ax.hist(Ns,bins=bins,cumulative=-1,
                weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
-    ax.set_yscale('log')
+    #The following line doesn't actually do anything since the code doesn't
+    #display the plot, but I'm keeping in case I ever want to.
+    ax.set_yscale('log') 
     plt.close()
     return count_ax,Ps
 
 def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
     #M0s=np.linspace(9.5,11.5,17)
-    Mwid=np.average(M0s[1:]-M0s[:-1])
+    #Mwid=np.average(M0s[1:]-M0s[:-1])
+    Mwid=0.1
     fracs=[]
     print'running quench data:'
     pbar=ProgressBar()
@@ -1609,5 +1612,5 @@ def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
     return M0s,fracs
 
 def bld_smf_compo(main):
-    smf_ar=pd.read_csv('./data/smf_composites.csv')[main]
+    smf_ar=pd.read_csv('/home/users/staudt/projects/mergers/data/smf_composites.csv')[main]
     return smf_ar

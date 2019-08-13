@@ -223,6 +223,20 @@ class SMFClass:
             self.slopes = np.array([-0.46])
             self.slopes2 = np.array([-1.58])
             self.initialize_redshift(redshift)
+        elif source == 'mous':
+            '''
+            Moustakas et al. 2013. Chabrier IMF.
+            '''
+            self.redshifts=np.array([0.01,0.105,0.25,0.35,0.45,0.575,0.725,0.9,1.])
+            self.mchars=np.array([10.9582,10.9582,10.8101,10.8103,10.8612,
+                                   10.9114,10.9310,11.0315,11.0315])
+            self.amplitudes=1.e-4*np.array([22.0555,22.0555,29.4359,
+                                            33.3472,28.2186,25.7530,
+                                            30.0008,19.1025,19.1025])
+            self.slopes=np.array([-1.1604,-1.1604,-1.0059,-1.0000,-1.0000,
+                                  -1.0000,-1.0000,-1.3417,-1.3417])
+            self.make_splines()
+            self.initialize_redshift(redshift)
         elif source == 'cole':
             '''
             z = 0.1 from Cole et al 2001 (2dF), converting their Salpeter to Kroupa.
@@ -450,7 +464,7 @@ class SMFClass:
             self.amplitude2 = self.amplitudes2[0] * np.log(10)
             self.slope = self.slopes[0] + 1
             self.slope2 = self.slopes2[0] + 1
-        elif self.source in ('cole-march','li-march', 'march',
+        elif self.source in ('cole-march','li-march', 'march', 'mous',
                              'perez', 'constant-li',
                              'li-march-extreme','muzzin',
                              'muzzin-sameslope','muzzin-bestslope','duncan',
