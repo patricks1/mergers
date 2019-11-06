@@ -22,18 +22,19 @@ mpl.use('Agg')
 import matplotlib.pyplot as plt 
 #from matplotlib import rcParams
 
+allzis=np.arange(35)
 tpm=TreepmClass(sigma_8=0.8)
+tpm.subisread=False
+tpm.hostisread=False
 
-class shamedTreepmClass(TreepmClass):
+class shamedTreepmClass():
     def __init__(self,scat=0.,dis_mf=0.,source='rand',
                  Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
                  seed=None,mmin=5.,conscat=True):
-        TreepmClass.__init__(self)
-        #super(shamedTreepmClass,self).__init__()
         self.smtype='m.max'
         self.hmtype='m.200c'
         self.gmtype='m.star'
-        self.allzis=np.arange(35)
+        self.allzis=allzis
         self.shamzis=np.arange(shamzibeg,shamziend+1)
         self.scat=scat
         self.dis_mf=dis_mf
@@ -42,8 +43,6 @@ class shamedTreepmClass(TreepmClass):
         self.mmin=mmin
         self.conscat=conscat
         self.seed=seed
-        self.subisread=False
-        self.hostisread=False
         self.mtree_host_blt=False
         self.mtree_sub_blt=False
         self.mtree_gal_blt=False
@@ -51,11 +50,11 @@ class shamedTreepmClass(TreepmClass):
         self.mptree_sub_blt=False
         self.mptree_gal_blt=False
         if catkind=='subhalo':
-            self.readsub()
+            readsub()
         elif catkind=='halo':
-            self.readhost()
+            readhost()
         elif catkind=='both':
-            self.readboth()
+            readboth()
 
     def write_mMs(self,M0cond,condtype,zibeg,ziend,Mtime,mutype='gal',
                      N=None,app=''):
@@ -86,34 +85,6 @@ class shamedTreepmClass(TreepmClass):
             f.create_dataset('zbeg',data=out[6])
             f.create_dataset('zend',data=out[7])
             f.create_dataset('zs',data=out[8])
-
-    '''
-    #removing this because the new write_mMs() covers both halos and galaxies.
-    def write_galmMs(self,M0cond,condtype,zibeg,ziend,Mtime,N=None,app=''):
-        Mtime=str(Mtime)
-        tstmp='{:%Y%m%d}'.format(datetime.datetime.now())
-        if (self.seed is None) or (not self.scat):
-            seedstr=''
-        else:
-            seedstr='_'+str(self.seed)+'seed'
-        fname='./dat/{7}_mM{3}_M{4}0_{0:0.2f}_scat{2:0.2f}{6}_{1}{5}.h5'\
-              .format(M0cond,tstmp,self.scat,Mtime,condtype,app,seedstr,mutype)
-        with h5py.File(fname,'w') as f:
-            if self.subisread:
-                f.create_dataset('snap',data=self.subcat.snap)
-            elif self.hostisread:
-                f.create_dataset('snap',data=self.hostcat.snap)
-            out=self.gal_mMs(M0cond,condtype,zibeg,ziend,Mtime,N)
-            f.create_dataset('mMs',data=out[0])
-            f.create_dataset('ms',data=out[1])
-            f.create_dataset('Ms',data=out[2])
-            f.create_dataset('iprim0s_merg',data=out[3])
-            f.create_dataset('iprim0s_keys',data=out[4])
-            f.create_dataset('Nprim0',data=out[5])
-            f.create_dataset('zbeg',data=out[6])
-            f.create_dataset('zend',data=out[7])
-            f.create_dataset('zs',data=out[8])
-    '''
 
     def merg_rates_z_gal(self,M,zibeg,ziend,N=None):
         #Get list of m_{*,z}/M_{*,z} for galaxies whose M_{host hal,z}
@@ -343,7 +314,7 @@ class shamedTreepmClass(TreepmClass):
             #fill this zi branch of the main-progenitor tree
             #Only add paris for mps that have positive indices and mass at z.
             #Make a copy of hi0s. "exatz" stands for "exists at z":
-            hi0s_exatz=hi0s[:] 
+            hi0s_exatz=hi0s.copy() 
             paris=indices_tree(cat,0,zi,hi0s_exatz)
 
             exists=paris>=0
@@ -850,31 +821,6 @@ class shamedTreepmClass(TreepmClass):
         #mMs=list(-np.abs(np.array(mMs)))
         return mMs,ms,Ms,zs
 
-    def readhost(self,skipsham=True):
-        if not self.hostisread:
-            self.hostcat=self.read(zis=self.allzis,catalog_kind='halo')
-            if not skipsham:
-                #sham.assign(self.hostcat,scat=self.scat,dis_mf=self.dis_mf,
-                #            source=self.source,
-                #            sham_prop=self.hmtype,zis=self.shamzis,
-                #            seed=self.seed)
-                self.run_sham(self.hostcat,self.hmtype)
-            self.hostisread=True
-
-    def readsub(self,skipsham=False):
-        if not self.subisread:
-            self.subcat=self.read(zis=self.allzis,catalog_kind='subhalo')
-            if not skipsham:
-                #sham.assign(self.subcat,scat=self.scat,dis_mf=self.dis_mf,
-                #            source=self.source,
-                #            sham_prop=self.smtype,zis=self.shamzis,seed=self.seed)
-                self.run_sham(self.subcat,self.smtype)
-            self.subisread=True
-
-    def readboth(self):
-        self.readhost()
-        self.readsub()
-
     def run_sham(self,cat,sham_prop):
         smf_mtrx=pd.read_csv('/home/users/staudt/projects/mergers/data/smf.csv')  
         print('running SHAM')
@@ -908,6 +854,25 @@ class shamedTreepmClass(TreepmClass):
                         sham_prop=sham_prop, 
                         zis=self.shamzis,
                         seed=self.seed,mmin=self.mmin,const=self.conscat)
+
+###############################################################################
+
+def readhost():
+    if not tpm.hostisread:
+        tpm.hostcat=tpm.read(zis=allzis,catalog_kind='halo')
+        tpm.hostisread=True
+    return
+
+def readsub():
+    if not tpm.subisread:
+        tpm.subcat=tpm.read(zis=allzis,catalog_kind='subhalo')
+        tpm.subisread=True
+    return
+
+def readboth():
+    tpm.readhost()
+    tpm.readsub()
+    return
 
 ###############################################################################
 

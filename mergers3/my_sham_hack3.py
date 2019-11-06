@@ -17,7 +17,7 @@ try:
 except ImportError:
     pass
 
-def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='', 
+def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='', 
            sham_prop='m.max', zis=None,seed=None,mmin=7.3,const=True):
     '''
     Assign Mag_r or M_star via abundance matching.
@@ -27,71 +27,77 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
     mass source, property to abundance match against, [snapshot index[s]].
     '''
     np.random.seed(seed)
-    if isinstance(sub, list):
+    if isinstance(cat, list):
         if zis is None:
             raise ValueError('subhalo catalog is a tree list, but no input snapshot index[s]')
-    elif isinstance(sub, dict):
+    elif isinstance(cat, dict):
         if zis is not None:
             raise ValueError('input snapshot index[s], but input catalog of subhalo at snapshot')
-        sub = [sub]
+        cat = [cat]
         zis = [0]
-    subz = sub[zis[0]]
-    vol = subz.info['box.length'] ** 3
-    #print 'Box Length', subz.info['box.length']
-    #print 'Box Hubble', subz.Cosmo['hubble']
+    catz = cat[zis[0]]
+    vol = catz.info['box.length'] ** 3
+    #print 'Box Length', catz.info['box.length']
+    #print 'Box Hubble', catz.Cosmo['hubble']
     zis = ut.array.arrayize(zis)
     if m_kind == 'm.star':
         if not source:
             source = 'li-drory-march'
-        redshift = subz.snap['z']
+        redshift = catz.snap['z']
         if redshift < 0.1:
             redshift = 0.1
-        MF = SMFClass(source, redshift, scat, subz.Cosmo['hubble'],mmin=mmin)
+        MF = SMFClass(source, redshift, scat, catz.Cosmo['hubble'],mmin=mmin)
     elif m_kind == 'mag.r':
         if source == 'cool_ages':
-            redshift = subz.snap['z']
+            redshift = catz.snap['z']
             if redshift < 0.1:
                 redshift = 0.1
-            MF = LFClass(source, scat, subz.Cosmo['hubble'], redshift)
+            MF = LFClass(source, scat, catz.Cosmo['hubble'], redshift)
         else:
             if not source:
                 source = 'blanton'
-            MF = LFClass(source, scat, subz.Cosmo['hubble'])
+            MF = LFClass(source, scat, catz.Cosmo['hubble'])
     else:
         raise ValueError('not recognize m_kind = %s' % m_kind)
+    #Initializing a catalog into which to put galaxies. This is the beginning
+    #of the major changes I'm going to implement (-PS 11/6/19). Henceforth, I'm
+    #going to change a lot of "cat" to "galcat"
+    galcat={} 
     for ei,zi in enumerate(zis):
-        subz = sub[zi]
-        subz['scat']=np.repeat(np.nan,subz[sham_prop].size)
-        subz['m.max.test']=np.repeat(np.nan,subz[sham_prop].size)
-        subz[m_kind] = np.zeros(subz[sham_prop].size, np.float32)
+        catz = cat[zi]
+        galcat[zi]={}
+        galcatz=galcat[zi]
+        galcatz['scat']=np.repeat(np.nan,catz[sham_prop].size)
+        galcatz['m.max.test']=np.repeat(np.nan,catz[sham_prop].size)
+        galcatz[m_kind] = np.zeros(catz[sham_prop].size, np.float32)
         if m_kind == 'm.star':
-            z = subz.snap['z']
+            z = catz.snap['z']
             if z < 0.1:
                 z = 0.1
             MF.initialize_redshift(z)
         elif m_kind == 'mag.r':
             if source == 'cool_ages':
-                z = subz.snap['z']
+                z = catz.snap['z']
                 if z < 0.1:
                     z = 0.1
                 MF.initialize_redshift(z)
         #maximum number of objects in volume to assign given SMF/LF threshold
         #(numden returns cumulative number density given a mass.)
         num_max = int(round(MF.numden(MF.mmin) * vol))
-        sis = ut.array.elements(subz[sham_prop], [0.001, Inf])
+        sis = ut.array.elements(catz[sham_prop], [0.001, Inf])
         if dis_mf:
-            sis = ut.array.elements(subz['m.frac.min'], [dis_mf, Inf], sis)
-        #Get indices that will sort subz by mass in descending order. Then cut
+            sis = ut.array.elements(catz['m.frac.min'], [dis_mf, Inf], sis)
+        #Get indices that will sort catz by mass in descending order. Then cut
         #it off when it reaches a minimum mass:
         if len(sis)<num_max:
             num_max=len(sis)
-        siis_sort = np.argsort(subz[sham_prop][sis]).\
+        siis_sort = np.argsort(catz[sham_prop][sis]).\
                     astype(sis.dtype)[::-1][:num_max]
         num_sums = ut.array.arange_length(num_max) + 1
         if scat:
             if m_kind == 'm.star': 
                 scats = np.random.normal(np.zeros(num_max), MF.scat).astype(np.float32)
-                mmax_test=subz['m.max'][sis[siis_sort]]
+                mmax_test=catz['m.max'][sis[siis_sort]]
             elif m_kind == 'mag.r': 
                 scats = np.random.normal(np.zeros(num_max), 2.5 * MF.scat).astype(np.float32)
             if const:
@@ -99,10 +105,10 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
                     #Get indices corresponding to the previous z so we can see
                     #whether the program has already assigned a scatter to that
                     #galaxy line:
-                    tree_is=ut.catalog.indices_tree(sub,zi,zi-1,
+                    tree_is=ut.catalog.indices_tree(cat,zi,zi-1,
                                                     sis[siis_sort])
                     hasfam=tree_is>=0
-                    famscat=sub[zi-1]['scat'][tree_is[hasfam]]
+                    famscat=cat[zi-1]['scat'][tree_is[hasfam]]
                     nanfam_is=np.where(np.isnan(famscat))
                     #For each halo that has family, if its family's scatter
                     #is nan, change its hasfam status to false:
@@ -110,14 +116,14 @@ def assign(sub, m_kind='m.star', scat=0, dis_mf=0.007, source='',
 
                     #Where a galaxy line has already been assined a scatter,
                     #set the corresponding scat element to that value.
-                    scats[hasfam]=sub[zi-1]['scat'][tree_is[hasfam]]
-                    mmax_test[hasfam]=sub[zi-1]['m.max'][tree_is[hasfam]]
-                subz['scat'][sis[siis_sort]]=scats
+                    scats[hasfam]=cat[zi-1]['scat'][tree_is[hasfam]]
+                    mmax_test[hasfam]=cat[zi-1]['m.max'][tree_is[hasfam]]
+                catz['scat'][sis[siis_sort]]=scats
             #m_scat returns descattered mass given cumulative number density. 
             #Add scatter to this to get final mass:
-            subz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats
+            catz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats
         else:
-            subz[m_kind][sis[siis_sort]] = MF.m(num_sums / vol)
+            catz[m_kind][sis[siis_sort]] = MF.m(num_sums / vol)
 
 class SMFClass:
     '''
