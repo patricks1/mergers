@@ -27,14 +27,18 @@ tpm=TreepmClass(sigma_8=0.8)
 tpm.subisread=False
 tpm.hostisread=False
 
-class shamedTreepmClass():
-    def __init__(self,scat=0.,dis_mf=0.,source='rand',
-                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
-                 seed=None,mmin=5.,conscat=True):
-        self.smtype='m.max'
-        self.hmtype='m.200c'
-        self.gmtype='m.star'
-        self.allzis=allzis
+class GalTreepmClass(object):
+    def __init__(self,haltpm,scat=0.,dis_mf=0.,source='rand',Mwid=0.5,
+                 haltyp='subhalo',shamzibeg=0,shamziend=34,seed=None,mmin=5.,
+                 conscat=True,sham_prop='m.max'):
+        if haltyp='subhalo':
+            haltpm.readsub()
+            halcat=haltpm.subcat
+        elif haltyp='host':
+            haltpm.readhost()
+            halcat=haltpm.hostcat
+
+        self.galcat=[]
         self.shamzis=np.arange(shamzibeg,shamziend+1)
         self.scat=scat
         self.dis_mf=dis_mf
@@ -43,18 +47,70 @@ class shamedTreepmClass():
         self.mmin=mmin
         self.conscat=conscat
         self.seed=seed
+        self.mtree_gal_blt=False
+        self.mptree_gal_blt=False
+
+        run_sham(halcat,sham_prop,galcat)
+
+    def run_sham(self,halcat,sham_prop):
+        smf_mtrx=pd.read_csv('/home/users/staudt/projects/mergers/data/smf.csv')  
+        print('running SHAM')
+        if isinstance(self.source,(list,np.ndarray,pd.core.series.Series)):
+            pbar=ProgressBar()
+            for zi in pbar(self.shamzis):
+                source=self.source[zi]
+                sham.assign(halcat,scat=self.scat,dis_mf=self.dis_mf,
+                            source=source,       
+                            sham_prop=sham_prop, 
+                            zis=[zi],            
+                            seed=self.seed,mmin=self.mmin,const=self.conscat,
+                            galcat=self.galcat)
+        elif self.source=='rand':
+            self.source={}
+            pbar=ProgressBar()
+            for zi in pbar(self.shamzis):
+                #Choose random smf from those allowed at this z.
+                allowed=np.array(smf_mtrx.loc[zi,:]).astype('bool')
+                all_smf=np.arange(len(allowed))
+                choices=smf_mtrx.columns.values[allowed]
+                source=random.choice(choices) 
+                self.source[zi]=source
+                sham.assign(halcat,scat=self.scat,dis_mf=self.dis_mf,
+                            source=source,       
+                            sham_prop=sham_prop, 
+                            zis=[zi],            
+                            seed=self.seed,mmin=self.mmin,const=self.conscat,
+                            galcat=self.galcat)
+        else:
+            sham.assign(halcat,scat=self.scat,dis_mf=self.dis_mf,
+                        source=self.source,  
+                        sham_prop=sham_prop, 
+                        zis=self.shamzis,
+                        seed=self.seed,mmin=self.mmin,const=self.conscat,
+                        galcat=self.galcat)
+
+class HalTreepmClass():
+    def __init__(self,scat=0.,dis_mf=0.,source='rand',
+                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
+                 seed=None,mmin=5.,conscat=True):
+        self.smtype='m.max'
+        self.hmtype='m.200c'
+        self.gmtype='m.star'
+        self.allzis=allzis
+        self.Mwid=Mwid
         self.mtree_host_blt=False
         self.mtree_sub_blt=False
-        self.mtree_gal_blt=False
         self.mptree_host_blt=False
         self.mptree_sub_blt=False
-        self.mptree_gal_blt=False
+        #Skipping SHAM on all the following read methods, because I'm 
+        #implementing the change where galaxy info will be stored in a separate
+        #object. (-PS 11/7/19)
         if catkind=='subhalo':
-            readsub()
+            readsub(skipsham=True)
         elif catkind=='halo':
-            readhost()
+            readhost(skipsham=True)
         elif catkind=='both':
-            readboth()
+            readboth(skipsham=True)
 
     def write_mMs(self,M0cond,condtype,zibeg,ziend,Mtime,mutype='gal',
                      N=None,app=''):
@@ -162,7 +218,7 @@ class shamedTreepmClass():
                 mMs+=list(mMs_add)
         return mMs,Nhost,zbeg,zend
 
-    def merg_tree(self,zibeg=0,ziend=34,typ='gal'):
+    def merg_tree(self,zibeg=0,ziend=34,typ='gal',galcat=None):
         if typ not in ['gal','subhal','host']:
             raise ValueError('typ must be "gal", "subhal" or "host".')
         if typ in ['gal','subhal']:
@@ -170,19 +226,27 @@ class shamedTreepmClass():
                 self.readsub()
             cat=self.subcat
             if typ=='gal':
+                if galcat is None:
+                    raise ValueError('type is "gal", but galcat not provided')
                 mtype=self.gmtype
+                #Make a pointer to the cat into which we'll put the merger tree
+                objcat=galcat 
             elif typ=='subhal':
                 mtype=self.smtype
+                #Make a pointer to the cat into which we'll put the merger tree
+                objcat=self.subcat
         elif typ=='host':
             if not self.hostisread:
                 self.readhost()
             cat=self.hostcat
+            #Make a pointer to the cat into which we'll put the merger tree
+            objcat=self.hostcat
             mtype=self.hmtype
         
         zis=np.arange(zibeg,ziend+1)
         zbeg=cat.snap[zibeg][1]
         zend=cat.snap[ziend][1]
-        hi0s=np.arange(len(cat[0][mtype]))
+        hi0s=np.arange(len(objcat[0][mtype]))
 
         print('building merger tree:')
         #Evaluate zis in reverse order from highest redshift through second to
@@ -196,10 +260,10 @@ class shamedTreepmClass():
                 brstr='sub.merg.branch'
             elif typ=='host':
                 brstr='merg.branch'
-            cat[zi][brstr]={}
-            mergbranch=cat[zi][brstr]
+            objcat[zi][brstr]={}
+            mergbranch=objcat[zi][brstr]
 
-            his=np.arange(len(cat[zi][mtype]))
+            his=np.arange(len(objcat[zi][mtype]))
             #Take each halo at zi and find out either what it merged into
             #or what it's new index is at zi-1:
             chiis=indices_tree(cat,zi,zi-1,his)
@@ -209,8 +273,8 @@ class shamedTreepmClass():
             elif typ=='gal': 
                 print('{0:d} galaxies in snapshot {1:d}'.format(len(his),zi))
 
-            allms_chi=cat[zi-1][mtype]
-            allms=cat[zi][mtype]
+            allms_chi=objcat[zi-1][mtype]
+            allms=objcat[zi][mtype]
             if (len(allms_chi)==0)or(len(allms)==0):
                 #At high z, there may be no mass array.
                 continue
@@ -223,11 +287,11 @@ class shamedTreepmClass():
             his=his[mask]
             chiis=chiis[mask]
             
-            #Only evaluate where both the primary and secondary halo have
+            #Only evaluate where both the primary and secondary object have
             #positive masses
             primis=cat[zi-1]['par.i'][chiis]
-            prim_ms=cat[zi][mtype][primis]
-            sec_ms=cat[zi][mtype][his]
+            prim_ms=objcat[zi][mtype][primis]
+            sec_ms=objcat[zi][mtype][his]
             notnan=~(np.isnan(sec_ms) | np.isnan(prim_ms))
             #Get a mask for notnan objects that have both prim and sec masses:
             hasmasses=prim_ms[notnan]*sec_ms[notnan]>0.
@@ -267,7 +331,7 @@ class shamedTreepmClass():
                 mergbranch[i0]=mergbranch.pop(chii)
             '''
         if typ=='gal':
-            self.mtree_gal_blt=True
+            objcat.mtree_gal_blt=True
         elif typ=='subhal':
             self.mtree_sub_blt=True
         elif typ=='host':
@@ -821,58 +885,22 @@ class shamedTreepmClass():
         #mMs=list(-np.abs(np.array(mMs)))
         return mMs,ms,Ms,zs
 
-    def run_sham(self,cat,sham_prop):
-        smf_mtrx=pd.read_csv('/home/users/staudt/projects/mergers/data/smf.csv')  
-        print('running SHAM')
-        if isinstance(self.source,(list,np.ndarray,pd.core.series.Series)):
-            pbar=ProgressBar()
-            for zi in pbar(self.shamzis):
-                source=self.source[zi]
-                sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
-                            source=source,       
-                            sham_prop=sham_prop, 
-                            zis=[zi],            
-                            seed=self.seed,mmin=self.mmin,const=self.conscat)
-        elif self.source=='rand':
-            self.source={}
-            pbar=ProgressBar()
-            for zi in pbar(self.shamzis):
-                #Chose random smf from those allowed at this z.
-                allowed=np.array(smf_mtrx.loc[zi,:]).astype('bool')
-                all_smf=np.arange(len(allowed))
-                choices=smf_mtrx.columns.values[allowed]
-                source=random.choice(choices) 
-                self.source[zi]=source
-                sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
-                            source=source,       
-                            sham_prop=sham_prop, 
-                            zis=[zi],            
-                            seed=self.seed,mmin=self.mmin,const=self.conscat)
-        else:
-            sham.assign(cat,scat=self.scat,dis_mf=self.dis_mf,
-                        source=self.source,  
-                        sham_prop=sham_prop, 
-                        zis=self.shamzis,
-                        seed=self.seed,mmin=self.mmin,const=self.conscat)
+    def readhost(self):
+        if not self.hostisread:
+            self.hostcat=self.read(zis=allzis,catalog_kind='halo')
+            self.hostisread=True
+        return
 
-###############################################################################
+    def readsub(self):
+        if not self.subisread:
+            self.subcat=self.read(zis=allzis,catalog_kind='subhalo')
+            self.subisread=True
+        return
 
-def readhost():
-    if not tpm.hostisread:
-        tpm.hostcat=tpm.read(zis=allzis,catalog_kind='halo')
-        tpm.hostisread=True
-    return
-
-def readsub():
-    if not tpm.subisread:
-        tpm.subcat=tpm.read(zis=allzis,catalog_kind='subhalo')
-        tpm.subisread=True
-    return
-
-def readboth():
-    tpm.readhost()
-    tpm.readsub()
-    return
+    def readboth(self):
+        self.readhost()
+        self.readsub()
+        return
 
 ###############################################################################
 

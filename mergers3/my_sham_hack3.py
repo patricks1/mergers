@@ -18,7 +18,8 @@ except ImportError:
     pass
 
 def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='', 
-           sham_prop='m.max', zis=None,seed=None,mmin=7.3,const=True):
+           sham_prop='m.max', zis=None,seed=None,mmin=7.3,const=True,
+           galcat=None):
     '''
     Assign Mag_r or M_star via abundance matching.
 
@@ -27,6 +28,15 @@ def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='',
     mass source, property to abundance match against, [snapshot index[s]].
     '''
     np.random.seed(seed)
+    if galcat is None:
+        #If a specific catalog into which to put the galaxies is not specified,
+        #put them into the halo catlog that the user passes.
+        galcat=cat
+    else:
+        #Initializing a catalog into which to put galaxies. This is the beginning
+        #of the major changes I'm going to implement (-PS 11/6/19). Henceforth, I'm
+        #going to change a lot of "cat" to "galcat"
+        galcat={}
     if isinstance(cat, list):
         if zis is None:
             raise ValueError('subhalo catalog is a tree list, but no input snapshot index[s]')
@@ -59,10 +69,6 @@ def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='',
             MF = LFClass(source, scat, catz.Cosmo['hubble'])
     else:
         raise ValueError('not recognize m_kind = %s' % m_kind)
-    #Initializing a catalog into which to put galaxies. This is the beginning
-    #of the major changes I'm going to implement (-PS 11/6/19). Henceforth, I'm
-    #going to change a lot of "cat" to "galcat"
-    galcat={} 
     for ei,zi in enumerate(zis):
         catz = cat[zi]
         galcat[zi]={}
@@ -108,7 +114,7 @@ def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='',
                     tree_is=ut.catalog.indices_tree(cat,zi,zi-1,
                                                     sis[siis_sort])
                     hasfam=tree_is>=0
-                    famscat=cat[zi-1]['scat'][tree_is[hasfam]]
+                    famscat=galcat[zi-1]['scat'][tree_is[hasfam]]
                     nanfam_is=np.where(np.isnan(famscat))
                     #For each halo that has family, if its family's scatter
                     #is nan, change its hasfam status to false:
@@ -116,14 +122,14 @@ def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='',
 
                     #Where a galaxy line has already been assined a scatter,
                     #set the corresponding scat element to that value.
-                    scats[hasfam]=cat[zi-1]['scat'][tree_is[hasfam]]
+                    scats[hasfam]=galcat[zi-1]['scat'][tree_is[hasfam]]
                     mmax_test[hasfam]=cat[zi-1]['m.max'][tree_is[hasfam]]
-                catz['scat'][sis[siis_sort]]=scats
+                galcatz['scat'][sis[siis_sort]]=scats
             #m_scat returns descattered mass given cumulative number density. 
             #Add scatter to this to get final mass:
-            catz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats
+            galcatz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats
         else:
-            catz[m_kind][sis[siis_sort]] = MF.m(num_sums / vol)
+            galcatz[m_kind][sis[siis_sort]] = MF.m(num_sums / vol)
 
 class SMFClass:
     '''
