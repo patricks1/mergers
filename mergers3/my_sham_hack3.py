@@ -13,7 +13,8 @@ from progressbar import ProgressBar
 # local -----
 #from visualize import plot_sm
 try: 
-    from utilities import utility as ut
+    #from utilities import utility as ut
+    from wtreepm3 import utility as ut
 except ImportError:
     pass
 
