@@ -338,7 +338,7 @@ class shamedTreepmClass(TreepmClass):
             #fill this zi branch of the main-progenitor tree
             #Only add paris for mps that have positive indices and mass at z.
             #Make a copy of hi0s. "exatz" stands for "exists at z":
-            hi0s_exatz=hi0s[:] 
+            hi0s_exatz=hi0s.copy() 
             paris=indices_tree(cat,0,zi,hi0s_exatz)
 
             exists=paris>=0

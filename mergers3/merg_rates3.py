@@ -33,9 +33,10 @@ class GalTreepmClass(object):
             haltpm.readhost()
             halcat=haltpm.hostcat
 
-        self.galcat=[]
+        self.galcat={}
         self.shamzis=np.arange(shamzibeg,shamziend+1)
         self.scat=scat
+        self.gmtype='m.star'
         self.dis_mf=dis_mf
         self.source=source
         self.Mwid=Mwid
@@ -47,6 +48,102 @@ class GalTreepmClass(object):
 
         self.run_sham(halcat,sham_prop)
 
+    def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None,
+                     indices=False):
+        #Calculate the cumulative probabilities for a galaxy with M(zi=0)=Mcond 
+        #to experience a certain number of mergers of raio m/M within mu_rng 
+        
+        #indices=True includes hi0s_merg in the output.
+
+        zis=np.arange(zibeg,ziend+1)
+        cat=self.galcat
+        mtype=self.gmtype
+        mp_brstr='gal.mp.branch'
+        m_brstr='gal.merg.branch'
+        M0s=cat[0][mtype]
+        if Mwid is None:
+            Mwid=self.Mwid
+        inrange=(M0s<Mcond+Mwid/2.) & (M0s>Mcond-Mwid/2.)
+        hi0s=np.arange(len(M0s))[inrange]
+
+        #For the histogram later. Need the arrays for the if stmt now.
+        bins=np.arange(-0.5,9.5,1)
+        count_ax=(bins[1:]+bins[:-1])/2. #x-axis of merger counts
+        #print(len(hi0s))
+        #print(hi0s)
+        if len(hi0s)==0:
+            return (np.repeat(np.nan,len(count_ax)), 
+                    np.repeat(np.nan,len(count_ax)))
+
+        Ns=[] #initialize the number of mergers in each count bin
+        hi0s_merg=[] #z=0 halos that have any mergers in their history
+        for hi0 in hi0s:
+            Ns_add=0 #starting off the number of mergers in the bin at 0
+            for zi in zis:
+                #2 parents will share a child, so get the mp branch for zi-1
+                mpbranch=cat[zi-1][mp_brstr]
+                mergbranch=cat[zi][m_brstr]
+                if hi0 in mpbranch: 
+                    chii=mpbranch[hi0]
+                    if chii in mergbranch:
+                        merg_is=mergbranch[chii]
+                    else:
+                        continue
+                else:
+                    continue
+                ms=cat[zi][mtype][merg_is]
+                primi=cat[zi][mp_brstr][hi0]
+                M=cat[zi][mtype][primi]
+                #print(hi0)
+                #print(ms)
+                #print(M)
+                #print('')
+                mus=-np.abs(ms-M)
+                in_mu_rng=(mus>mu_rng[0])&(mus<mu_rng[1])
+                Ns_add+=np.sum(in_mu_rng) 
+            if Ns_add>0:
+                hi0s_merg+=[hi0]
+            Ns+=[Ns_add]
+
+        fig=plt.figure()
+        ax=fig.add_subplot(111)
+        Ps=ax.hist(Ns,bins=bins,cumulative=-1,
+                   weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
+        #print(Ps)
+        #print('')
+        #The following line doesn't actually do anything since the code doesn't
+        #display the plot, but I'm keeping in case I ever want to.
+        ax.set_yscale('log') 
+        plt.close()
+        
+        if indices==True:
+            output=(count_ax,Ps,hi0s_merg)
+        else:
+            output=(count_ax,Ps)
+        return output
+
+    def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
+        #Run hgram_dat_ft for each Mcond in M0s to find the fraction of
+        #galaxies that experience at least one mergers of ratio m/M>min_mu as a
+        #function of M0
+
+        #M0s=np.linspace(9.5,11.5,17)
+        #Mwid=np.average(M0s[1:]-M0s[:-1])
+        Mwid=0.1
+        fracs=[]
+        print('running quench data:')
+        pbar=ProgressBar()
+        for M0 in pbar(M0s): 
+            #print(M0)
+            hgram_dat=self.hgram_dat_ft(mu_rng=[min_mu,0.],Mcond=M0,
+                                   zibeg=zibeg,ziend=ziend,Mwid=Mwid)
+            #print(hgram_dat[0])
+            #print(hgram_dat[1])
+            #pull the fraction corresponding to the "at least one" count
+            frac=hgram_dat[1][1] 
+            fracs+=[frac]
+        return M0s,fracs
+    
     def run_sham(self,halcat,sham_prop):
         smf_mtrx=pd.read_csv('/home/users/staudt/projects/mergers/data/smf.csv')  
         print('running SHAM')
@@ -83,15 +180,56 @@ class GalTreepmClass(object):
                         zis=self.shamzis,
                         seed=self.seed,mmin=self.mmin,const=self.conscat,
                         galcat=self.galcat)
+        return
+
+    def shmr_sham(self,haltpm,zi=0):
+        #shmr found by integrating the simulated dndm for galaxies and halos.
+        ms_gal,dndms_gal=haltpm.dndm(zi,typ='gal',paramed=False,
+                                     galtpm=self)
+        ms_hal,dndms_hal=haltpm.dndm(zi,typ='hal',paramed=False,num=500)
+        #Not sure why I had originally written this info to self, so I'm
+        #commenting them.
+        #self.ms_gal=ms_gal
+        #self.dndms_gal=dndms_gal
+        #self.ms_hal=ms_hal
+        #self.dndms_hal=dndms_hal
+        
+        #reverse the arrays so dndms are in ascending order:
+        ms_gal=ms_gal[::-1]
+        dndms_gal=dndms_gal[::-1]
+        ms_hal=ms_hal[::-1]
+        dndms_hal=dndms_hal[::-1]
+        
+        dm_gal=(ms_gal.max()-ms_gal.min())/float(len(ms_gal))
+        dm_hal=(ms_hal.max()-ms_hal.min())/float(len(ms_hal))
+        numdens_gal=np.array([np.sum(dndms_gal[:i]) 
+                              for i in range(len(dndms_gal))])*dm_gal
+        numdens_hal=np.array([np.sum(dndms_hal[:i]) 
+                              for i in range(len(dndms_hal))])*dm_hal
+        #Switch to lognumdens.
+        numdens_gal=np.log10(numdens_gal)
+        numdens_hal=np.log10(numdens_hal)
+
+        #maximum difference between a target numden and the numden that lookup
+        #finds in the lookup array in order for a result to register:
+        step=np.average(numdens_gal[1:]-numdens_gal[:-1])
+        #Initialize ms_hal corresponding to ms_gal.
+        ms_hal_shmr=np.zeros(len(ms_gal))
+        for i in range(len(ms_gal)):
+            numden=numdens_gal[i]
+            ms_hal_shmr[i]=sutils.lookup(numden,numdens_hal,ms_hal,step)
+        
+        return ms_hal_shmr,ms_gal#,numdens_gal
 
 class HalTreepmClass(TreepmClass):
-    def __init__(self,scat=0.,dis_mf=0.,source='rand',
-                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
-                 seed=None,mmin=5.,conscat=True):
+    def __init__(self,dis_mf=0.,
+                 Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34):
+    #def __init__(self,scat=0.,dis_mf=0.,source='rand',
+    #             Mwid=0.5,catkind='subhalo',shamzibeg=0,shamziend=34,
+    #             seed=None,mmin=5.,conscat=True):
         TreepmClass.__init__(self)
         self.smtype='m.max'
         self.hmtype='m.200c'
-        self.gmtype='m.star'
         self.allzis=np.arange(35)
         self.Mwid=Mwid
         self.mtree_host_blt=False
@@ -213,7 +351,7 @@ class HalTreepmClass(TreepmClass):
                 mMs+=list(mMs_add)
         return mMs,Nhost,zbeg,zend
 
-    def merg_tree(self,zibeg=0,ziend=34,typ='gal',galcat=None):
+    def merg_tree(self,zibeg=0,ziend=34,typ='gal',gal_tpm=None):
         if typ not in ['gal','subhal','host']:
             raise ValueError('typ must be "gal", "subhal" or "host".')
         if typ in ['gal','subhal']:
@@ -221,11 +359,11 @@ class HalTreepmClass(TreepmClass):
                 self.readsub()
             cat=self.subcat
             if typ=='gal':
-                if galcat is None:
-                    raise ValueError('type is "gal", but galcat not provided')
-                mtype=self.gmtype
+                if gal_tpm is None:
+                    raise ValueError('type is "gal", but gal_tpm not provided')
+                mtype=gal_tpm.gmtype
                 #Make a pointer to the cat into which we'll put the merger tree
-                objcat=galcat 
+                objcat=gal_tpm.galcat 
             elif typ=='subhal':
                 mtype=self.smtype
                 #Make a pointer to the cat into which we'll put the merger tree
@@ -326,27 +464,44 @@ class HalTreepmClass(TreepmClass):
                 mergbranch[i0]=mergbranch.pop(chii)
             '''
         if typ=='gal':
-            objcat.mtree_gal_blt=True
+            gal_tpm.mtree_gal_blt=True
         elif typ=='subhal':
             self.mtree_sub_blt=True
         elif typ=='host':
             self.mtree_host_blt=True
 
-    def mp_tree(self,typ='gal',zibeg=0,ziend=34):
+    def mp_tree(self,typ='gal',zibeg=0,ziend=34,gal_tpm=None):
         if typ not in ['gal','subhal','host']:
             raise ValueError('typ must be "gal", "subhal" or "host".')
         if typ in ['gal','subhal']:
             if not self.subisread:
                 self.readsub()
+            #Given that all the index information is stored in the halo
+            #catalog, I'm keeping mp_tree() and merg_tree() in 
+            #HalTreepmClass(), which contains the halo catalog. This then
+            #requires me to add a gal_tpm argument so, if we're building a 
+            #galaxy mp_tree, the program knows the tpm
+            #into which it should put the mp_tree.
             cat=self.subcat
             if typ=='gal':
-                mtype=self.gmtype
+                if gal_tpm is None:
+                    raise ValueError('type is "gal", but gal_tpm not provided')
+                mtype=gal_tpm.gmtype
+                #Make a pointer to the cat into which we'll put the main
+                #progenitor tree:
+                objcat=gal_tpm.galcat
             elif typ=='subhal':
                 mtype=self.smtype
+                #Make a pointer to the cat into which we'll put the main
+                #progenitor tree:
+                objcat=self.subcat
         elif typ=='host':
             if not self.hostisread:
                 self.readhost()
             cat=self.hostcat
+            #Make a pointer to the at into which we'll put the main
+            #progenitor tree:
+            objcat=self.hostcat
             mtype=self.hmtype
 
         zis=np.arange(zibeg,ziend+1)
@@ -367,8 +522,8 @@ class HalTreepmClass(TreepmClass):
                 brstr='sub.mp.branch'
             elif typ=='host':
                 brstr='mp.branch'
-            cat[zi][brstr]={}
-            mpbranch=cat[zi][brstr]
+            objcat[zi][brstr]={}
+            mpbranch=objcat[zi][brstr]
 
             #fill this zi branch of the main-progenitor tree
             #Only add paris for mps that have positive indices and mass at z.
@@ -380,7 +535,7 @@ class HalTreepmClass(TreepmClass):
             paris=paris[exists]
             hi0s_exatz=hi0s_exatz[exists]
 
-            ms=cat[zi][mtype]
+            ms=objcat[zi][mtype]
             if len(ms)==0:
                 #At high z, there may be no mass array.
                 continue
@@ -400,11 +555,12 @@ class HalTreepmClass(TreepmClass):
             for hi0,pari in zip(hi0s_exatz,paris):
                 mpbranch[hi0]=pari
         if typ=='gal':
-            self.mptree_gal_blt=True
+            gal_tpm.mptree_gal_blt=True
         elif typ=='subhal':
             self.mptree_sub_blt=True
         elif typ=='host':
             self.mptree_host_blt=True
+        return
 
     def gal_mMs_fromtree(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
         if not self.mtreebuilt:
@@ -426,8 +582,12 @@ class HalTreepmClass(TreepmClass):
             if Mz==0.:
                 continue
             ms_add=self.subcat[zi]['par.tree'][i_primary]
+        return
 
     def gal_mMs(self,M0cond,condtype,zibeg,ziend,Mtime,N=None):
+        #***CANDIDATE FOR REMOVAL BECAUSE I THINK GAL_MmS_FROMTREE() COVERS
+        #THIS***
+
         #Get list of m_*/M_* 
         #M0cond can be based on either galaxy or halo mass at z=0.
         #t0=time.time()
@@ -465,6 +625,9 @@ class HalTreepmClass(TreepmClass):
         return mMs,ms,Ms,iprim0s_merg,i_primaries0,Nprim0,zbeg,zend,zs
 
     def mMs_f(self,M0cond,condtype,zibeg,ziend,Mtime,mutype='gal',N=None):
+        #***CANDIDATE FOR REMOVAL ONCE I WRITE AN MmS_FROMTREE THAT CAN HANDLE
+        #EITHER GALAXIES OR HALOS. RIGHT NOW GAL_MmS_FROMTREE IS GOOD, BUT FOR
+        #SOME REASON I WROTE IT SO IT ONLY HANDLES GALAXIES.
         #Get list of m_*/M_* 
         #M0cond can be based on either galaxy or halo mass at z=0.
         #t0=time.time()
@@ -517,10 +680,18 @@ class HalTreepmClass(TreepmClass):
             for M in Mbins:
     '''
     
-    def dndm(self,snap=0,paramed=False,typ='gal'):
-        #Get dn/dlogm at given snapshot                      
+    def dndm(self,snap=0,paramed=False,typ='gal',galtpm=None,num=50):
+        #Get dn/dlogm at given snapshot.
+        #num sets number of mass bins.
+        #This is different from dndm in the sham module because this checks the
+        #dndm that actually resulted within the mock, as opposed to what dndm
+        #should be in theory.
         if typ=='gal':
-            allms=self.subcat[snap][self.gmtype] #Get all masses at snap
+            if galtpm is None:
+                print('The error is occuring')
+                raise ValueError('Type is "gal", but no galtpm is provided.')
+            galcat=galtpm.galcat
+            allms=galcat[snap][galtpm.gmtype] #Get all masses at snap
         elif typ=='hal':
             allms=self.subcat[snap][self.smtype] #Get all masses at snap
         mask1=allms!=0.
@@ -528,8 +699,6 @@ class HalTreepmClass(TreepmClass):
         mask=mask1*mask2 #Get halo index for every halo with nonzero mass and ID not equal to -1.
         ms=allms[mask] #Get the corresponding masses                            
         #self.mstest=ms
-        num=50. #Number of bins                                                 
-        #print len(ms)
         lower=np.min(ms) #Lower histogram bound                                 
         upper=np.max(ms) #Upper histogram bound                                 
         bins=np.linspace(lower,upper,num) #Mass bins in log                     
@@ -548,39 +717,6 @@ class HalTreepmClass(TreepmClass):
         else:
             n=N/(250./0.7)**3./binw
         return midbins,n                                 
-
-    def shmr_sham(self,zi=0):
-        #quasi-analytical shmr, found by comparing the simulated SMF and the
-        #simulated HMF
-        ms_gal,dndms_gal=self.dndm(zi,paramed=False)
-        ms_hal,dndms_hal=self.dndm(zi,typ='hal',paramed=False)
-        self.ms_gal=ms_gal
-        self.dndms_gal=dndms_gal
-        self.ms_hal=ms_hal
-        self.dndms_hal=dndms_hal
-        
-        #reverse the arrays so dndms are in ascending order:
-        ms_gal=ms_gal[::-1]
-        dndms_gal=dndms_gal[::-1]
-        ms_hal=ms_hal[::-1]
-        dndms_hal=dndms_hal[::-1]
-        
-        dm_gal=(ms_gal.max()-ms_gal.min())/float(len(ms_gal))
-        dm_hal=(ms_hal.max()-ms_hal.min())/float(len(ms_hal))
-        numdens_gal=np.array([np.sum(dndms_gal[:i]) 
-                              for i in range(len(dndms_gal))])*dm_gal
-        numdens_hal=np.array([np.sum(dndms_hal[:i]) 
-                              for i in range(len(dndms_hal))])*dm_hal
-         
-        #maximum difference between a target numden and the numden that lookup
-        #finds in the lookup array in order for a result to register:
-        step=np.average(numdens_gal[1:]-numdens_gal[:-1])
-        ms_hal_shmr=np.zeros(len(ms_hal)) #initialize ms_gal_ofhal
-        for i in range(len(ms_hal)):
-            numden=numdens_gal[i]
-            ms_hal_shmr[i]=sutils.lookup(numden,numdens_hal,ms_hal,step)
-        
-        return ms_hal_shmr,ms_gal
 
     def get_primaries0(self,condtype,M0cond,throughout=False):
         if condtype in ['gal','subhal']:
@@ -643,6 +779,9 @@ class HalTreepmClass(TreepmClass):
         return il
 
     def mMs_add_f(self,i_primary0,zis,Mtime,mutype):
+        #CANDIDATE FOR REMOVAL ONCE I REMOVE ALL FUNCTIONS THAT USE THIS
+        #FUNCTION, BECAUSE THIS DOES NOT USE THE TREE.
+
         #Get a list of m_gal/M_gal ratios spanning zis for a single z=0 subhalo
         #M_gal can either be M0 or Mz depending on Mtime.
         if not Mtime in ['0','z']:
@@ -1149,7 +1288,7 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
                 #exist at any of the following zs, but I'm letting it run
                 #through to be safe.
                 continue                                                    
-            #If we are forcing masses to be 
+            #If we are forcing masses to be m200
             if forcem200 & (typ!='host'):
                 self.readhost()
                 inf_zis=cat[zi]['inf.last.zi'][merg_is]
@@ -1338,68 +1477,6 @@ def sv_tpm(self):
     with h5py.File(fname,'w') as f:
         f.create_dataset('tpm',data=self.subcat[1]['gal.merg.branch'])
     return
-
-def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None):
-    zis=np.arange(zibeg,ziend+1)
-    cat=self.subcat
-    mtype=self.gmtype
-    mp_brstr='gal.mp.branch'
-    m_brstr='gal.merg.branch'
-    M0s=cat[0][mtype]
-    if Mwid is None:
-        Mwid=self.Mwid
-    inrange=(M0s<Mcond+Mwid/2.) & (M0s>Mcond-Mwid/2.)
-    hi0s=np.arange(len(M0s))[inrange]
-    Ns=[] #initialize the number of mergers in each M0 bin
-    for hi0 in hi0s:
-        Ns_add=0 #starting off the number of mergers in the bin at 0
-        for zi in zis:
-            #2 parents will share a child, so get the mp branch for zi-1
-            mpbranch=cat[zi-1][mp_brstr]
-            mergbranch=cat[zi][m_brstr]
-            if hi0 in mpbranch: 
-                chii=mpbranch[hi0]
-                if chii in mergbranch:
-                    merg_is=mergbranch[chii]
-                else:
-                    continue
-            else:
-                continue
-            ms=cat[zi][mtype][merg_is]
-            primi=cat[zi][mp_brstr][hi0]
-            M=cat[zi][mtype][primi]
-            mus=-np.abs(ms-M)
-            in_mu_rng=(mus>mu_rng[0])&(mus<mu_rng[1])
-            Ns_add+=np.sum(in_mu_rng) 
-        Ns+=[Ns_add]
-
-    bins=np.arange(-0.5,9.5,1)
-    count_ax=(bins[1:]+bins[:-1])/2. #x-axis of merger counts
-    fig=plt.figure()
-    ax=fig.add_subplot(111)
-    Ps=ax.hist(Ns,bins=bins,cumulative=-1,
-               weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
-    #The following line doesn't actually do anything since the code doesn't
-    #display the plot, but I'm keeping in case I ever want to.
-    ax.set_yscale('log') 
-    plt.close()
-    return count_ax,Ps
-
-def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
-    #M0s=np.linspace(9.5,11.5,17)
-    #Mwid=np.average(M0s[1:]-M0s[:-1])
-    Mwid=0.1
-    fracs=[]
-    print('running quench data:')
-    pbar=ProgressBar()
-    for M0 in pbar(M0s): 
-        hgram_dat=hgram_dat_ft(self,[min_mu,0.],Mcond=M0,
-                               zibeg=zibeg,ziend=ziend,Mwid=Mwid)
-        #print hgram_dat[0]
-        #pull the fraction corresponding to the "at least one" count
-        frac=hgram_dat[1][1] 
-        fracs+=[frac]
-    return M0s,fracs
 
 def bld_smf_compo(main):
     smf_ar=pd.read_csv('/home/users/staudt/projects/mergers/data/smf_composites.csv')[main]
