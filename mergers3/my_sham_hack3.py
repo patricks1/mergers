@@ -127,7 +127,7 @@ def assign(cat, m_kind='m.star', scat=0, dis_mf=0.007, source='',
                     #set the corresponding scat element to that value.
                     scats[hasfam]=galcat[zi-1]['scat'][tree_is[hasfam]]
                     mmax_test[hasfam]=cat[zi-1]['m.max'][tree_is[hasfam]]
-                galcatz['scat'][sis[siis_sort]]=scats
+            galcatz['scat'][sis[siis_sort]]=scats
             #m_scat returns descattered mass given cumulative number density. 
             #Add scatter to this to get final mass:
             galcatz[m_kind][sis[siis_sort]] = MF.m_scat(num_sums / vol) + scats

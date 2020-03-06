@@ -41,6 +41,7 @@ def lookup(lookupval,lookuparray,resultarray,threshold):
         #within the threshold.
         if np.abs(lowerdiff)<threshold: 
             result=resultarray[max(0,i-2)]
+            print('halo number density: {0:0.2f}'.format(lowerlookupval))
         else:
             #return #EXCLUDING "NA" FOR NOW
             result=None
@@ -48,6 +49,7 @@ def lookup(lookupval,lookuparray,resultarray,threshold):
     #within the threshold.
     elif np.abs(upperdiff)<threshold:
         result=resultarray[max(0,i-1)]
+        print('halo number density: {0:0.2f}'.format(upperlookupval))
     else:
         #return #EXCLUDING "NA" FOR NOW
         result=None

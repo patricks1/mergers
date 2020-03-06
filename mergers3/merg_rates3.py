@@ -3,6 +3,7 @@ import random
 import datetime
 import h5py
 import pandas as pd
+import scipy
 
 #from wetzel_utils.utility.utility_catalog import indices_tree
 from wtreepm3.utility.utility_catalog import indices_tree
@@ -181,45 +182,6 @@ class GalTreepmClass(object):
                         seed=self.seed,mmin=self.mmin,const=self.conscat,
                         galcat=self.galcat)
         return
-
-    def shmr_sham(self,haltpm,zi=0):
-        #shmr found by integrating the simulated dndm for galaxies and halos.
-        ms_gal,dndms_gal=haltpm.dndm(zi,typ='gal',paramed=False,
-                                     galtpm=self)
-        ms_hal,dndms_hal=haltpm.dndm(zi,typ='hal',paramed=False,num=500)
-        #Not sure why I had originally written this info to self, so I'm
-        #commenting them.
-        #self.ms_gal=ms_gal
-        #self.dndms_gal=dndms_gal
-        #self.ms_hal=ms_hal
-        #self.dndms_hal=dndms_hal
-        
-        #reverse the arrays so dndms are in ascending order:
-        ms_gal=ms_gal[::-1]
-        dndms_gal=dndms_gal[::-1]
-        ms_hal=ms_hal[::-1]
-        dndms_hal=dndms_hal[::-1]
-        
-        dm_gal=(ms_gal.max()-ms_gal.min())/float(len(ms_gal))
-        dm_hal=(ms_hal.max()-ms_hal.min())/float(len(ms_hal))
-        numdens_gal=np.array([np.sum(dndms_gal[:i]) 
-                              for i in range(len(dndms_gal))])*dm_gal
-        numdens_hal=np.array([np.sum(dndms_hal[:i]) 
-                              for i in range(len(dndms_hal))])*dm_hal
-        #Switch to lognumdens.
-        numdens_gal=np.log10(numdens_gal)
-        numdens_hal=np.log10(numdens_hal)
-
-        #maximum difference between a target numden and the numden that lookup
-        #finds in the lookup array in order for a result to register:
-        step=np.average(numdens_gal[1:]-numdens_gal[:-1])
-        #Initialize ms_hal corresponding to ms_gal.
-        ms_hal_shmr=np.zeros(len(ms_gal))
-        for i in range(len(ms_gal)):
-            numden=numdens_gal[i]
-            ms_hal_shmr[i]=sutils.lookup(numden,numdens_hal,ms_hal,step)
-        
-        return ms_hal_shmr,ms_gal#,numdens_gal
 
 class HalTreepmClass(TreepmClass):
     def __init__(self,dis_mf=0.,
@@ -628,6 +590,7 @@ class HalTreepmClass(TreepmClass):
         #***CANDIDATE FOR REMOVAL ONCE I WRITE AN MmS_FROMTREE THAT CAN HANDLE
         #EITHER GALAXIES OR HALOS. RIGHT NOW GAL_MmS_FROMTREE IS GOOD, BUT FOR
         #SOME REASON I WROTE IT SO IT ONLY HANDLES GALAXIES.
+        
         #Get list of m_*/M_* 
         #M0cond can be based on either galaxy or halo mass at z=0.
         #t0=time.time()
@@ -688,7 +651,6 @@ class HalTreepmClass(TreepmClass):
         #should be in theory.
         if typ=='gal':
             if galtpm is None:
-                print('The error is occuring')
                 raise ValueError('Type is "gal", but no galtpm is provided.')
             galcat=galtpm.galcat
             allms=galcat[snap][galtpm.gmtype] #Get all masses at snap
@@ -717,6 +679,106 @@ class HalTreepmClass(TreepmClass):
         else:
             n=N/(250./0.7)**3./binw
         return midbins,n                                 
+
+    def shmr_sham(self,zi=0,galtpm=None,source=None,scat=None,
+                  mmin=5.):
+        #shmr found by integrating the simulated dndm for galaxies and halos.
+        if galtpm is None:
+            if source is None:
+                raise ValueError('galtpm not provided but ' 
+                                 'no SMF name'
+                                 'is provided in the source argument.')
+            if scat is None:
+                raise ValueError('galtpm not provided but '
+                                 'no scatter value is'
+                                 ' specified.')
+            #Creating a temporary tpm instance into which to put galaxy masses
+            #for the dndm calcualation
+            galtpm=TreepmClass()
+            galtpm.gmtype='m.star'
+            galtpm.galcat={}
+
+            sham.assign(self.subcat,scat=scat,source=source,zis=[zi],seed=None,
+                        mmin=mmin,const=False,galcat=galtpm.galcat)
+            ms_gal,dndms_gal=self.dndm(zi,typ='gal',paramed=False,
+                                       galtpm=galtpm,num=500)
+        else:
+            if source or scat:
+                raise ValueError('You provided a galtpm but also specified '
+                                 'attributes meant for when galtpm is not '
+                                 'provided.')
+            ms_gal,dndms_gal=self.dndm(zi,typ='gal',paramed=False,
+                                       galtpm=galtpm)
+            
+        ms_hal,dndms_hal=self.dndm(zi,typ='hal',paramed=False,num=500)
+        
+        #reverse the arrays so dndms are in ascending order:
+        ms_gal=ms_gal[::-1]
+        dndms_gal=dndms_gal[::-1]
+        ms_hal=ms_hal[::-1]
+        dndms_hal=dndms_hal[::-1]
+        
+        dm_gal=(ms_gal.max()-ms_gal.min())/float(len(ms_gal))
+        dm_hal=(ms_hal.max()-ms_hal.min())/float(len(ms_hal))
+
+        #Need a negative sign in front because masses are in descending order.
+        numdens_gal=-scipy.integrate.cumtrapz(dndms_gal,ms_gal,initial=0)
+        numdens_hal=-scipy.integrate.cumtrapz(dndms_hal,ms_hal,initial=0)
+
+        #Switch to lognumdens.
+        numdens_gal=np.log10(numdens_gal)
+        numdens_hal=np.log10(numdens_hal)
+
+        #maximum difference between a target numden and the numden that lookup
+        #finds in the lookup array in order for a result to register:
+        step=np.average(numdens_gal[1:]-numdens_gal[:-1])
+        #Initialize ms_hal corresponding to ms_gal.
+        ms_hal_shmr=np.zeros(len(ms_gal))
+        for i in range(len(ms_gal)):
+            numden=numdens_gal[i]
+            ms_hal_shmr[i]=sutils.lookup(numden,numdens_hal,ms_hal,step)
+        
+        return ms_hal_shmr,ms_gal#,numdens_gal
+
+    def shmr_avg(self,ms_hal,galtpm=None,zi=0,Mwid=0.004,source=None,scat=None,
+                 mmin=5.):
+        #SHMR based on the average resulting galaxy mass for givin halo-mass
+        #buckets
+        if galtpm is None:
+            if source is None:
+                raise ValueError('galtpm not provided but ' 
+                                 'no SMF name'
+                                 'is provided in the source argument.')
+            if scat is None:
+                raise ValueError('galtpm not provided but '
+                                 'no scatter value is'
+                                 ' specified.')
+            #Creating a temporary tpm instance into which to put galaxy masses
+            #for the avg mass calcualations
+            galtpm=TreepmClass()
+            galtpm.gmtype='m.star'
+            galtpm.galcat={}
+            sham.assign(self.subcat,scat=scat,source=source,zis=[zi],seed=None,
+                        mmin=mmin,const=False,galcat=galtpm.galcat)
+        else:
+            if source or scat:
+                raise ValueError('You provided a galtpm but also specified '
+                                 'attributes meant for when galtpm is not '
+                                 'provided.')
+        ms_gal=np.zeros(len(ms_hal))
+        halcatz=self.subcat[zi]
+        galcatz=galtpm.galcat[zi]
+        all_hal_ms=halcatz[self.smtype]
+        all_gal_ms=galcatz[galtpm.gmtype]
+        notzero=all_gal_ms>0
+        notnan=~np.isnan(all_gal_ms)
+        all_hal_ms=all_hal_ms[notzero & notnan]
+        all_gal_ms=all_gal_ms[notzero & notnan]
+        for i,m_hal in enumerate(ms_hal):
+            matches_m_hal=((all_hal_ms>m_hal-Mwid/2.) 
+                           & (all_hal_ms<m_hal+Mwid/2.))
+            ms_gal[i]=np.average(all_gal_ms[matches_m_hal])
+        return ms_gal
 
     def get_primaries0(self,condtype,M0cond,throughout=False):
         if condtype in ['gal','subhal']:

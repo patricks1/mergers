@@ -617,7 +617,7 @@ class shamedTreepmClass(TreepmClass):
         mask=mask1*mask2 #Get halo index for every halo with nonzero mass and ID not equal to -1.
         ms=allms[mask] #Get the corresponding masses                            
         #self.mstest=ms
-        num=50. #Number of bins                                                 
+        num=500. #Number of bins                                                 
         #print len(ms)
         lower=np.min(ms) #Lower histogram bound                                 
         upper=np.max(ms) #Upper histogram bound                                 
@@ -660,7 +660,11 @@ class shamedTreepmClass(TreepmClass):
                               for i in xrange(len(dndms_gal))])*dm_gal
         numdens_hal=np.array([np.sum(dndms_hal[:i]) 
                               for i in xrange(len(dndms_hal))])*dm_hal
-         
+
+        #Switch to lognumdens.
+        numdens_gal=np.log10(numdens_gal)
+        numdens_hal=np.log10(numdens_hal)
+
         #maximum difference between a target numden and the numden that lookup
         #finds in the lookup array in order for a result to register:
         step=np.average(numdens_gal[1:]-numdens_gal[:-1])
