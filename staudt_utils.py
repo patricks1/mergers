@@ -37,13 +37,19 @@ def lookup(lookupval,lookuparray,resultarray,threshold):
     upperdiff=np.abs(upperlookuparval-lookupval)
     lowerdiff=np.abs(lookupval-lowerlookuparval)
     if upperdiff>lowerdiff:
-        if np.abs(lowerdiff)<threshold:
+        #If lookuparval below the lookupval is closer, make sure lowerdiff is
+        #within the threshold.
+        if np.abs(lowerdiff)<threshold: 
             result=resultarray[max(0,i-2)]
+            print('halo number density: {0:0.2f}'.format(lowerlookupval))
         else:
             #return #EXCLUDING "NA" FOR NOW
             result=None
+    #If lookuparval above the lookupval is closer, make sure upperdiff is 
+    #within the threshold.
     elif np.abs(upperdiff)<threshold:
         result=resultarray[max(0,i-1)]
+        print('halo number density: {0:0.2f}'.format(upperlookupval))
     else:
         #return #EXCLUDING "NA" FOR NOW
         result=None
