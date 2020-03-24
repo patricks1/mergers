@@ -49,3 +49,24 @@ def lookup(lookupval,lookuparray,resultarray,threshold):
         result=None
     
     return result
+
+def match(lookupval,lookupar,typ):
+    #Assumes ascending order
+    #Returns the index of either the first item in lookupar that is >=
+    #lookupval or the last item in lookupar that is <= lookupval
+    if typ not in ['geq','leq']:
+        raise ValueError('Invalid type')
+    i=0
+    arval=lookupar[i]
+    while arval<lookupval:
+        if i>lookupar.size-1:
+            sys.exit('Reached the end of the lookup array.')
+        i+=1
+        arval=lookupar[i]
+    if typ=='geq':
+        pass
+    elif (typ=='leq') & (arval>lookupval):
+        if i==0:
+            raise ValueError('Nothing in lookupar <= lookupval')
+        i-=1
+    return i
