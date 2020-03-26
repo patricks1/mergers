@@ -564,7 +564,7 @@ class SMFClass:
                                                        m_stars[::-1])
         
         #Trying an error workaround -PS########################################
-        except ValueError:
+        except:
             #print'trying workaround'
             dnumden=numdens[1:]-numdens[:-1]
             bad=np.where(dnumden>0.)[0]
