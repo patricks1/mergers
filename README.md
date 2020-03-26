@@ -1,4 +1,9 @@
 # Galaxy Merger Uncertainties Project
+
+## Note
+This repository works for me and is a good representation of my work, but it will not run without the treepm backend data files, a few utilities, some comparison data files that I pulled from other papers, and all the correct environment paths specified so the environment knows where to find each package being imported.
+
+##
 This repository contains my scripts and Jupyter notebooks that 
 - SHAM galaxies to the halos in Andrew Wetzel's treepm package 
 - Identifies halo, subhalo, and galaxy mergers
@@ -33,6 +38,3 @@ This notebook generates the main plots I use for my uncertainties papers and pre
 
 ### testing_hash_method.ipynb
 At one point, identifying mergers and calculating statistics took ~12 hours for each run of the simulation. On Kilian Walsh's advice, I rewrote the heart of the process in ''merg_rates.py'' to generate merger "hash tables" (i.e. dictionaries) that have essentially zero lookup time. This sped up each run to ~6 minutes! This notebook tests merger statistics using that hash method to make sure it works. It does!  
-
-## Note
-This repository works for me and is a good representation of my work, but it will not run without the treepm backend data files, a few utilities, some comparison data files that I pulled from other papers, and all the correct environment paths specified so the environment knows where to find each package being imported.
