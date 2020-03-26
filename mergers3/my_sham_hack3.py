@@ -153,10 +153,10 @@ class SMFClass:
             '''
             Li & White 2009. z = 0.1 from SDSS. Chabrier IMF. Complete to 1e8 M_sun/h^2.
             '''
-            self.redshifts = np.array([0.1])
-            self.mchars = np.array([10.525]) - 2 * log10(hubble)    # {M_sun}
-            self.amplitudes = np.array([0.0083]) * hubble ** 3    # {Mpc ^ -3 / log(M/M_sun)}
-            self.slopes = np.array([-1.155])
+            self.redshifts = np.array([0.1,0.5])
+            self.mchars = np.array([10.525,10.525]) - 2 * log10(hubble)    # {M_sun}
+            self.amplitudes = np.array([0.0083,0.0083]) * hubble ** 3    # {Mpc ^ -3 / log(M/M_sun)}
+            self.slopes = np.array([-1.155,-1.155])
             self.initialize_redshift(redshift)
         elif source == 'muzzin':
             '''
