@@ -5,7 +5,7 @@ This repository works for me and is a good representation of my work. However, i
 
 The Python 3 scripts (in mergers3) require the user to install our [wTreepm3](https://github.com/patricks1/wTreepm3) package. The Python 2 scripts (in mergers2) require the same scripts contained in wTreepm3, but when I wrote those earlier mergers2 scripts, ChangHoon Hahn and I hadn't yet centralized the backend utilities into wTreepm3. Therefore, using the mergers2 scripts would require the user to configure the environment so it knows where each script is located. 
 
-##Project Description
+## Project Description
 This repository contains my scripts and Jupyter notebooks that 
 - SHAM galaxies to the halos in Andrew Wetzel's treepm package 
 - Identifies halo, subhalo, and galaxy mergers
