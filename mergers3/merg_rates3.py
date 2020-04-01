@@ -4,6 +4,7 @@ import datetime
 import h5py
 import pandas as pd
 import scipy
+import operator
 
 #from wetzel_utils.utility.utility_catalog import indices_tree
 from wtreepm3.utility.utility_catalog import indices_tree
@@ -50,11 +51,18 @@ class GalTreepmClass(object):
         self.run_sham(halcat,sham_prop)
 
     def hgram_dat_ft(self,mu_rng,Mcond,zibeg=1,ziend=34,Mwid=None,
-                     indices=False):
+                     indices=False,cutoff=-np.inf):
         #Calculate the cumulative probabilities for a galaxy with M(zi=0)=Mcond 
         #to experience a certain number of mergers of raio m/M within mu_rng 
         
         #indices=True includes hi0s_merg in the output.
+        #mu_rng is the range of log(mu)'s to include.
+        #Given the habit so far of keeping both masses and mass ratios in log,
+        #cutuff is the log(M/M0) after which we will stop counting mergers in
+        #the given main progenitor.
+        #IT IS EXTREMELY IMPORTANT THAT THE USER INPUT CUTOFF WITH THE CORRECT
+        #SIGN. E.G. M/M0=1/10 implies cutoff=-1. INCLUDING THE NEGATIVE IS 
+        #CRITICAL.
 
         zis=np.arange(zibeg,ziend+1)
         cat=self.galcat
@@ -66,6 +74,7 @@ class GalTreepmClass(object):
             Mwid=self.Mwid
         inrange=(M0s<Mcond+Mwid/2.) & (M0s>Mcond-Mwid/2.)
         hi0s=np.arange(len(M0s))[inrange]
+        M0s=M0s[inrange]
 
         #For the histogram later. Need the arrays for the if stmt now.
         bins=np.arange(-0.5,9.5,1)
@@ -78,13 +87,14 @@ class GalTreepmClass(object):
 
         Ns=[] #initialize the number of mergers in each count bin
         hi0s_merg=[] #z=0 halos that have any mergers in their history
-        for hi0 in hi0s:
-            Ns_add=0 #starting off the number of mergers in the bin at 0
+
+        def Ns_add_f(hi0,M0):
+            N=0 #starting off the number of hi0's mergers in the bin at 0
             for zi in zis:
                 #2 parents will share a child, so get the mp branch for zi-1
                 mpbranch=cat[zi-1][mp_brstr]
                 mergbranch=cat[zi][m_brstr]
-                if hi0 in mpbranch: 
+                if hi0 in mpbranch:  
                     chii=mpbranch[hi0]
                     if chii in mergbranch:
                         merg_is=mergbranch[chii]
@@ -92,29 +102,34 @@ class GalTreepmClass(object):
                         continue
                 else:
                     continue
-                ms=cat[zi][mtype][merg_is]
                 primi=cat[zi][mp_brstr][hi0]
                 M=cat[zi][mtype][primi]
-                #print(hi0)
-                #print(ms)
-                #print(M)
-                #print('')
-                mus=-np.abs(ms-M)
-                in_mu_rng=(mus>mu_rng[0])&(mus<mu_rng[1])
-                Ns_add+=np.sum(in_mu_rng) 
+                Mfrac=M-M0
+                #If Mfrac falls outside the acceptable range, stop evaluating
+                #hi0, and return its N.
+                if cutoff and Mfrac <= cutoff:
+                    return N
+                else:
+                    ms=cat[zi][mtype][merg_is]
+                    #print(hi0)
+                    #print(ms)
+                    #print(M)
+                    #print('')
+                    mus=-np.abs(ms-M)
+                    in_mu_rng=(mus>mu_rng[0])&(mus<mu_rng[1])
+                    N+=np.sum(in_mu_rng) 
+            return N 
+
+        for hi0,M0 in zip(hi0s,M0s):
+            Ns_add=Ns_add_f(hi0,M0)
+            Ns+=[Ns_add]
             if Ns_add>0:
                 hi0s_merg+=[hi0]
-            Ns+=[Ns_add]
 
         fig=plt.figure()
         ax=fig.add_subplot(111)
         Ps=ax.hist(Ns,bins=bins,cumulative=-1,
                    weights=np.repeat(1./float(len(hi0s)),len(Ns)))[0]
-        #print(Ps)
-        #print('')
-        #The following line doesn't actually do anything since the code doesn't
-        #display the plot, but I'm keeping in case I ever want to.
-        ax.set_yscale('log') 
         plt.close()
         
         if indices==True:
@@ -123,7 +138,8 @@ class GalTreepmClass(object):
             output=(count_ax,Ps)
         return output
 
-    def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,M0s=np.linspace(9.7,12.,7.)):
+    def quench_frac_ft(self,min_mu,zibeg=1,ziend=34,
+                       M0s=np.linspace(9.7,12.,7.),cutoff=-np.inf):
         #Run hgram_dat_ft for each Mcond in M0s to find the fraction of
         #galaxies that experience at least one mergers of ratio m/M>min_mu as a
         #function of M0
@@ -132,12 +148,12 @@ class GalTreepmClass(object):
         #Mwid=np.average(M0s[1:]-M0s[:-1])
         Mwid=0.1
         fracs=[]
-        print('running quench data:')
-        pbar=ProgressBar()
-        for M0 in pbar(M0s): 
+        print('running quench data')
+        for M0 in M0s: 
             #print(M0)
             hgram_dat=self.hgram_dat_ft(mu_rng=[min_mu,0.],Mcond=M0,
-                                   zibeg=zibeg,ziend=ziend,Mwid=Mwid)
+                                   zibeg=zibeg,ziend=ziend,Mwid=Mwid,
+                                   indices=False,cutoff=cutoff)
             #print(hgram_dat[0])
             #print(hgram_dat[1])
             #pull the fraction corresponding to the "at least one" count
@@ -313,7 +329,7 @@ class HalTreepmClass(TreepmClass):
                 mMs+=list(mMs_add)
         return mMs,Nhost,zbeg,zend
 
-    def merg_tree(self,zibeg=0,ziend=34,typ='gal',gal_tpm=None):
+    def merg_tree(self,zibeg=0,ziend=34,typ='gal',gal_tpm=None,prnt=False):
         if typ not in ['gal','subhal','host']:
             raise ValueError('typ must be "gal", "subhal" or "host".')
         if typ in ['gal','subhal']:
@@ -343,7 +359,7 @@ class HalTreepmClass(TreepmClass):
         zend=cat.snap[ziend][1]
         hi0s=np.arange(len(objcat[0][mtype]))
 
-        print('building merger tree:')
+        print('building merger tree')
         #Evaluate zis in reverse order from highest redshift through second to
         #lowest redshift:
         for zi in zis[:0:-1]:
@@ -363,10 +379,11 @@ class HalTreepmClass(TreepmClass):
             #or what it's new index is at zi-1:
             chiis=indices_tree(cat,zi,zi-1,his)
             
-            if typ in ['host','subhal']:
-                print('{0:d} halos in snapshot {1:d}'.format(len(his),zi))
-            elif typ=='gal': 
-                print('{0:d} galaxies in snapshot {1:d}'.format(len(his),zi))
+            if prnt:
+                if typ in ['host','subhal']:
+                    print('{0:d} halos in snapshot {1:d}'.format(len(his),zi))
+                elif typ=='gal': 
+                    print('{0:d} galaxies in snapshot {1:d}'.format(len(his),zi))
 
             allms_chi=objcat[zi-1][mtype]
             allms=objcat[zi][mtype]
@@ -405,10 +422,11 @@ class HalTreepmClass(TreepmClass):
             his=his[notnan][hasmasses]
             '''
             
-            if typ in ['host','subhal']:
-                print('{0:d} merge with larger halos'.format(len(his),zi))
-            elif typ=='gal':
-                print('{0:d} merge with larger galaxies'.format(len(his),zi))
+            if prnt:
+                if typ in ['host','subhal']:
+                    print('{0:d} merge with larger halos'.format(len(his),zi))
+                elif typ=='gal':
+                    print('{0:d} merge with larger galaxies'.format(len(his),zi))
 
             for hi,chii in zip(his,chiis):
                 if chii not in mergbranch: 
