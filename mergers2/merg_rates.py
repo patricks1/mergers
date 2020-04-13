@@ -318,7 +318,7 @@ class shamedTreepmClass(TreepmClass):
         zbeg=cat.snap[zibeg][1]
         zend=cat.snap[ziend][1]
 
-        hi0s=np.arange(len(cat[0]['m.max']))
+        hi0s=np.arange(len(cat[0][mtype]))
 
         #Evaluate zis in ascending order, tracing back z=0 main progenitors so
         #we have a list of main progenitors at every snapshot.
@@ -1210,10 +1210,10 @@ def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=34,
             dN+=np.sum(in_mu_range)
             
         if dx=='dz':
-            dx=cat[zi].snap['z']-cat[zi-1].snap['z']
+            dx_val=cat[zi].snap['z']-cat[zi-1].snap['z']
         elif dx=='dt':
-            dx=cat[zi-1].snap['t']-cat[zi].snap['t']
-        dNdx=float(dN)/dx
+            dx_val=cat[zi-1].snap['t']-cat[zi].snap['t']
+        dNdx=float(dN)/dx_val
         dNdxs+=[dNdx]
     dNdxs=np.array(dNdxs)
     dNdxs/=float(Nprim0)
@@ -1261,12 +1261,12 @@ def dNdx_ofmu(self,Mcond,typ,Mtime='z',dx='dz',forcem200=False,zibeg=0,
     if dx=='dz':
         zbeg=cat[zibeg].snap['z']
         zend=cat[ziend].snap['z']
-        dx=zend-zbeg
+        dx_val=zend-zbeg
     if dx=='dt':
         tbeg=cat[zibeg].snap['t']
         tend=cat[ziend].snap['t']
-        dx=tbeg-tend
-    dNdxs=dNs/dx
+        dx_val=tbeg-tend
+    dNdxs=dNs/dx_val
     return mus,dNdxs 
 
 def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
