@@ -565,14 +565,14 @@ class HalTreepmClass(TreepmClass):
         return
 
     def dNdx_ofz(self,Mcond,mu_cond,typ,dx='dz',zibeg=1,ziend=34,
-                 through=False,zi_Mcond=0,galtpm=None):
+                 through=False,zi_Mcond=0,galtpm=None, Mwid=0.5):
         #returns dNdz(z) or dNdt(z) around specific mu=m/M and M0 values.
         if not typ in ['gal','cengal','host','subhal','censubhal']:             
             raise ValueError('typ must be "gal", "cengal", "subhal", '          
                              '"censubhal", or "host"')                
         if typ in ['gal','cengal']:                                             
             if galtpm is None:
-                raise ValueError('Galaxy type specified but no galaxy catalog'
+                raise ValueError('Galaxy type specified but no galaxy catalog '
                                  'provided')
             mtype=galtpm.gmtype                                                   
             #set the merger-branch and main-progenitor-branch strings           
@@ -588,7 +588,7 @@ class HalTreepmClass(TreepmClass):
         elif typ in ['subhal','censubhal']:                                     
             if galtpm is not None:
                 raise ValueError('Halo type specified, but the user provided a'
-                                 'galaxy catalog.')
+                                 ' galaxy catalog.')
             mtype=self.smtype                                                   
             #set the merger-branch and main-progenitor-branch strings           
             m_brstr='sub.merg.branch'                                           
@@ -603,7 +603,7 @@ class HalTreepmClass(TreepmClass):
         elif typ=='host':                                                       
             if galtpm is not None:
                 raise ValueError('Halo type specified, but the user provided a'
-                                 'galaxy catalog.')
+                                 ' galaxy catalog.')
             mtype=self.hmtype                                                   
             #set the merger-branch and main-progenitor-branch strings           
             m_brstr='merg.branch'                                               
@@ -618,7 +618,7 @@ class HalTreepmClass(TreepmClass):
         
         zis=np.arange(zibeg,ziend+1)   
         allM0s=mcat[zi_Mcond][mtype]
-        inrange=(allM0s<Mcond+self.Mwid/2.) & (allM0s>Mcond-self.Mwid/2.)
+        inrange=(allM0s<Mcond+Mwid/2.) & (allM0s>Mcond-Mwid/2.)
         if typ in ['cengal','subhal']:
             iscen=halcat[zi_Mcond]['ilk']==1
             hi0s=np.arange(len(allM0s))[inrange & iscen]
@@ -679,12 +679,6 @@ class HalTreepmClass(TreepmClass):
             elif dx=='dt':
                 dx_val=halcat[zi-1].snap['t']-halcat[zi].snap['t']
             dNdx=float(dN)/dx_val
-            #print(zi)
-            #print(halcat[zi].snap['z'])
-            #print('dN: {0}'.format(dN))
-            #print('dx: {0:0.2f}'.format(dx))
-            #print('dNdx: {0:0.4f}'.format(dNdx))
-            #print('')
             dNdxs+=[dNdx]
         dNdxs=np.array(dNdxs)
         dNdxs/=float(Nprim0)
@@ -1094,7 +1088,7 @@ def read_mMs(mutype,Mcond,condtype,Mtime,scat,tstmp,seed=None,apnd=''):
         zend=(f['zend']).value
         zs=np.array(f['zs'])
         snap=np.array(f['snap'])
-    return mMs,ms,Ms,iprim0s_merg,iprim0s_keys,Nprim0,zbeg,zend,zs,snap
+    return mMs, ms, Ms, iprim0s_merg, iprim0s_keys, Nprim0, zbeg, zend, zs, snap
 
 def write_gal_hgram_dat(Mconds,condtype,Mtime,rngs,zmax,zmin,
                         scat,mMs_tstmp,seed=None,
@@ -1484,80 +1478,6 @@ def N_mu_ft(self,M0,typ,Mtime='z',forcem200=False,zibeg=0,ziend=34,
     plt.close()
     muaxis=(muaxis[1:]+muaxis[:-1])/2.
     return muaxis,Ns
-
-def merg_rates_z(self,M,zibeg,ziend,N=None):
-    if not self.hostisread:
-        self.readhost()
-    if not self.subisread:
-        self.readsub()
-    zis=np.arange(zibeg,ziend+1)
-    zbeg=self.hostcat.snap[zibeg][1]
-    zend=self.hostcat.snap[ziend][1]
-    mMs=[]
-    Nhost=0
-    pbar=ProgressBar()
-    ###TESTING
-    self.mrz_checkdic={}
-    self.mrz_mcheckdic={}
-    self.mrz_Mcheckdic={}
-    ###TESTING
-    for zi in zis[:-1]:
-        print('\nsnapshot %i'%zi)
-        hostis=elements(self.hostcat[zi][self.hmtype],
-                        lim=[M-self.Mwid/2.,M+self.Mwid/2.])
-        cenis=self.hostcat[zi]['cen.i'][hostis]
-        randis=np.arange(cenis.size)
-        print('%i halos in range.'%len(hostis))
-        if not N is None:
-            #random.seed(1)
-            randis=random.sample(randis,N)
-        cenis=cenis[randis]
-        hostis=hostis[randis]
-        print('evaluating %i'%len(cenis))
-        Nhost+=len(cenis)
-
-        pbar=ProgressBar()
-        for ceni,hosti in pbar(list(zip(cenis,hostis))):
-            M=self.hostcat[zi][self.hmtype][hosti]
-            if ceni==89483:
-                print('zi: %d'%zi)
-                print('hosti: %d'%hosti)
-            is_prog=self.subcat[zi+1]['chi.i']==ceni
-            is_prog[self.subcat[zi]['par.i'][ceni]]=False
-            ms=self.subcat[zi+1][self.smtype][is_prog]
-            ###TESTING###
-            mergis_frmeth=np.arange(len(self.subcat[zi+1][self.smtype]))\
-                          [is_prog]
-            ispos=ms>0.
-            ms=ms[ispos]
-            mergis_frmeth=mergis_frmeth[ispos]
-            if (np.sum(is_prog)>0)&(np.sum(ispos)>0):
-                mergis_frtree=np.sort(self.subcat[zi+1]['sub.merg.branch']\
-                                      [ceni])
-                mergis_frmeth_oth=np.sort(np.arange((self.subcat[zi+1]\
-                                                    [self.smtype]).size)\
-                                          [is_prog][ispos])
-                mMs_add=ms-M
-                if ceni in self.mrz_checkdic:
-                    self.mrz_checkdic[ceni]+=list(mMs_add)
-                    self.mrz_mcheckdic[ceni]+=list(ms)
-                else:
-                    self.mrz_checkdic[ceni]=list(mMs_add)
-                    self.mrz_Mcheckdic[ceni]=M
-                    self.mrz_mcheckdic[ceni]=list(ms)
-                if not np.array_equal(mergis_frtree,mergis_frmeth):
-                    print('Arrays are not equal.')
-                    print('%d: central index at z=0'%ceni)
-                    print('merger list from mrz method:')
-                    print(mergis_frmeth)
-                    print(mergis_frmeth_oth)
-                    print('merger list from tree method:')
-                    print(mergis_frtree)
-                    #return mergis_frmeth,mergis_frtree
-            ###END TESTING###
-            mMs_add=ms-M
-            mMs+=list(mMs_add)
-    return mMs,Nhost,zbeg,zend
 
 def sv_tpm(self):
     tstmp='{:%Y%m%d}'.format(datetime.datetime.now())
